@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.akton1.hub",
+  "name": "AktOn1 Plugin Hub",
+  "version": "0.1.0",
+  "author": "AktOn1",
+  "license": "MIT",
+  "description": "One bar icon and flyout for the AktOn1 plugins you have installed. Create several scratchpads (own key, own slide-in side, own frame, apps that start at login), set the fullscreen layer, and install the other AktOn1 plugins. None of them needs the Hub, and it bundles none. Connected: one flyout. Separated: one icon per plugin.",
+  "kinds": [
+    "service",
+    "bar-widget"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "Service.qml",
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "AktOn1 Plugins",
+    "description": "Settings for the AktOn1 plugins you have installed",
+    "category": "Plugins",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}
