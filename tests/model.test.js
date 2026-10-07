@@ -173,8 +173,8 @@ t("an old state file without the Fullscreen layer or layouts still loads", () =>
 })
 
 t("the Fullscreen layer keeps its own apps and layout, and apps make it keep non-game windows", () => {
-  const s = M.cleanState({ fullscreen: { label: "Hacked", layer: false, layout: "master", apps: ["steam", "  ", "discord"] } })
-  assert.strictEqual(s.fullscreen.label, "Fullscreen")
+  const s = M.cleanState({ fullscreen: { label: "Games", layer: false, layout: "master", apps: ["steam", "  ", "discord"] } })
+  assert.strictEqual(s.fullscreen.label, "Games")
   assert.strictEqual(s.fullscreen.layer, true)
   assert.strictEqual(s.fullscreen.layout, "master")
   assert.deepStrictEqual(s.fullscreen.apps, ["steam", "discord"])
@@ -202,3 +202,45 @@ t("every layer, Fullscreen included, hands its layout to the Lua runtime", () =>
 })
 
 console.log(n + " passed")
+
+const ENTRIES = [
+  { id: "cliamp", name: "cliamp", generic: "Music Player", comment: "", keywords: "music audio winamp", terminal: true, hidden: false, command: ["cliamp"] },
+  { id: "org.kde.kate", name: "Kate", generic: "Text Editor", comment: "", keywords: "editor", terminal: false, hidden: false, command: ["kate"] },
+  { id: "kitty", name: "kitty", generic: "Terminal", comment: "", keywords: "", terminal: false, hidden: false, command: ["kitty"] },
+  { id: "hidden", name: "Hidden", generic: "", comment: "", keywords: "", terminal: false, hidden: true, command: ["hidden"] }
+]
+
+t("picked apps start through gtk-launch so terminal apps get a terminal", () => {
+  assert.strictEqual(M.startupCommand("app:cliamp"), "uwsm-app -- gtk-launch 'cliamp.desktop'")
+  assert.strictEqual(M.startupCommand("app:it's"), "uwsm-app -- gtk-launch 'it'\\''s.desktop'")
+  assert.strictEqual(M.startupCommand("kitty -e htop"), "uwsm-app -- kitty -e htop")
+})
+
+t("a bare command that is a terminal app is resolved to its desktop entry", () => {
+  assert.strictEqual(M.resolveApp("cliamp", ENTRIES), "app:cliamp")
+  assert.strictEqual(M.resolveApp("/usr/bin/cliamp", ENTRIES), "app:cliamp")
+  assert.strictEqual(M.resolveApp("kitty", ENTRIES), "kitty")
+  assert.strictEqual(M.resolveApp("cliamp --x", ENTRIES), "cliamp --x")
+})
+
+t("app search finds by name, kind, id or keyword and skips hidden entries", () => {
+  assert.deepStrictEqual(M.matchApps(ENTRIES, "clia").map(a => a.app), ["app:cliamp"])
+  assert.deepStrictEqual(M.matchApps(ENTRIES, "music player").map(a => a.app), ["app:cliamp"])
+  assert.deepStrictEqual(M.matchApps(ENTRIES, "winamp").map(a => a.app), ["app:cliamp"])
+  assert.deepStrictEqual(M.matchApps(ENTRIES, "kde").map(a => a.app), ["app:org.kde.kate"])
+  assert.deepStrictEqual(M.matchApps(ENTRIES, "hidden"), [])
+  assert.deepStrictEqual(M.matchApps(ENTRIES, "  "), [])
+  assert.strictEqual(M.matchApps(ENTRIES, "cliamp")[0].terminal, true)
+})
+
+t("the app picker lists visible apps by name, with the id in the description", () => {
+  const o = M.appOptions(ENTRIES)
+  assert.deepStrictEqual(o.map(x => x.value), ["app:cliamp", "app:org.kde.kate", "app:kitty"])
+  assert.ok(o[0].description.indexOf("terminal app") >= 0)
+})
+
+t("titles: picked apps show their name, missing ones say so, commands stay as typed", () => {
+  assert.strictEqual(M.appTitle("app:cliamp", ENTRIES), "cliamp (terminal)")
+  assert.strictEqual(M.appTitle("app:gone", ENTRIES), "gone (not installed)")
+  assert.strictEqual(M.appTitle("kitty -e htop", ENTRIES), "kitty -e htop")
+})

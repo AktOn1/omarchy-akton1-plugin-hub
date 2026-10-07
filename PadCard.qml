@@ -9,7 +9,7 @@ Column {
   required property var hub
   required property var pad
   readonly property bool isLayer: pad.layer === true
-  readonly property string userKey: isLayer ? "" : (hub.snap.detected.pads[pad.id] || "")
+  readonly property string userKey: isLayer ? (hub.snap.detected.fullscreen || "") : (hub.snap.detected.pads[pad.id] || "")
   readonly property int running: hub.snap.running ? (hub.snap.running[pad.id] || 0) : 0
   readonly property var layoutOptions: Model.layoutOptions([pad.layout])
   readonly property bool frameOn: hub.snap.plugins["io.github.akton1.scratchpad-frame"].enabled
@@ -30,20 +30,8 @@ Column {
     spacing: Style.space(8)
     width: parent.width
 
-    Text {
-      visible: root.isLayer
-      width: parent.width - showButton.width - parent.spacing
-      anchors.verticalCenter: parent.verticalCenter
-      textFormat: Text.PlainText
-      text: root.pad.label
-      color: root.hub.foreground
-      font.family: root.hub.fontFamily
-      font.pixelSize: Style.font.body
-      font.bold: true
-    }
     TextField {
       id: nameField
-      visible: !root.isLayer
       width: parent.width - showButton.width - (removeButton.visible ? removeButton.width : 0) - parent.spacing * (removeButton.visible ? 2 : 1)
       text: root.pad.label
       foreground: root.hub.foreground
@@ -57,12 +45,12 @@ Column {
       focusable: true
       fontFamily: root.hub.fontFamily
       foreground: root.hub.foreground
-      tooltipText: root.isLayer ? "Show or hide the Fullscreen layer (opens only when something is on it)" : "Slide this scratchpad in or out"
+      tooltipText: root.isLayer ? "Show or hide this layer (opens only when something is on it)" : "Slide this scratchpad in or out"
       onClicked: root.hub.run(["toggle", root.pad.id])
     }
     Button {
       id: removeButton
-      visible: !root.pad.builtin
+      visible: !root.pad.builtin && !root.isLayer
       text: "Remove"
       bordered: true
       focusable: true
@@ -72,13 +60,13 @@ Column {
     }
   }
 
-  Caption { visible: !root.isLayer; text: "KEY" }
+  Caption { text: "KEY" }
   KeyButton {
-    visible: !root.isLayer
     hub: root.hub
-    slot: root.pad.id + "|key"
-    value: root.pad.key || ""
-    emptyText: root.pad.builtin ? "SUPER + S (Omarchy default)" : "not set"
+    slot: root.isLayer ? "fullscreen|key" : root.pad.id + "|key"
+    value: root.isLayer ? root.hub.snap.state.fullscreenKey : (root.pad.key || "")
+    emptyText: root.isLayer ? (root.userKey !== "" ? root.userKey + " (your own binding)" : "not set")
+                            : (root.pad.builtin ? "SUPER + S (Omarchy default)" : "not set")
   }
 
   Column {
@@ -88,13 +76,14 @@ Column {
     Text {
       textFormat: Text.PlainText
       width: parent.width
-      text: "Your bindings.lua already binds " + root.userKey + " for this scratchpad. The Hub leaves it alone."
+      text: "Your bindings.lua already binds " + root.userKey + " for this " + (root.isLayer ? "layer" : "scratchpad") + ". The Hub leaves it alone."
       color: root.hub.dim
       font.family: root.hub.fontFamily
       font.pixelSize: Style.font.bodySmall
       wrapMode: Text.WordWrap
     }
     Row {
+      visible: !root.isLayer
       spacing: Style.space(8)
       ToggleSwitch {
         checked: root.pad.keepMine === true
@@ -208,7 +197,7 @@ Column {
         width: parent.width - dropApp.width - parent.spacing
         anchors.verticalCenter: parent.verticalCenter
         textFormat: Text.PlainText
-        text: modelData
+        text: root.hub.appTitle(modelData)
         elide: Text.ElideRight
         color: root.hub.foreground
         font.family: root.hub.fontFamily
@@ -224,9 +213,22 @@ Column {
       }
     }
   }
+  SearchableDropdown {
+    id: appPicker
+    width: parent.width
+    showLabel: false
+    foreground: root.hub.foreground
+    fontFamily: root.hub.fontFamily
+    options: root.hub.appChoices
+    placeholderText: "Search installed apps to add..."
+    triggerLabel: "Search installed apps to add..."
+    emptyText: "No installed app matches"
+    value: ""
+    onChanged: function(v) { root.hub.run(["appAdd", root.pad.id, v]); value = "" }
+  }
   TextField {
     width: parent.width
-    placeholderText: "command, then Enter (e.g. kitty)"
+    placeholderText: "or type a command, then Enter"
     foreground: root.hub.foreground
     font.family: root.hub.fontFamily
     onAccepted: if (text.trim() !== "") { root.hub.run(["appAdd", root.pad.id, text.trim()]); text = "" }

@@ -3,7 +3,7 @@
 One bar icon and one flyout for the AktOn1 plugins. It lists the ones you have installed, shows their settings, and installs the ones you do not have yet. The Hub bundles none of them. Every AktOn1 plugin is installed on its own and works without the Hub.
 
 - **Scratchpads**: make several named scratchpads. Each has its own key, its own slide-in side (several different sides at once), its own frame style, its own tiling layout, and apps that start at login. The original `SUPER + S` scratchpad is there from the start. One scratchpad at most holds the fullscreen-game layer.
-- **Fullscreen** (shows up when Fullscreen App Auto Workspace is installed and on): the default fullscreen layer, named Fullscreen. It has its own key, layout and apps, and you choose whether fullscreen games go there (default) or to one of your scratchpads. Mute while hidden.
+- **Fullscreen** (shows up when Fullscreen App Auto Workspace is installed and on): the default fullscreen layer, named Fullscreen. It looks like any scratchpad card (a name box you can edit, key, layout, apps), and you choose whether fullscreen games go there (default) or to one of your scratchpads. Mute while hidden.
 - **Layout** (every scratchpad and Fullscreen): Default, Dwindle, Master, Scrolling or Monocle, set on that layer's own workspace. Default leaves Hyprland alone. A custom Lua layout can be set from the command line (`padSet <id> layout lua:<name>`).
 - **Start / Restart apps** (every scratchpad and Fullscreen): starts the layer's apps now, or closes the ones the Hub started there and starts them again, so you never have to restart Omarchy. Only windows the Hub itself started are closed (never a window you put there yourself, never a game).
 - **More AktOn1 plugins**: plugins you have not installed yet, with an Install button. A plugin that is installed but turned off gets an Enable button.
@@ -43,10 +43,11 @@ The flyout is only a face for these commands (`omarchy-shell akton1-hub ...`), s
 | `padAdd <label> [direction]` | New scratchpad (direction `bottom` `top` `left` `right`) |
 | `padRemove <id>` | Remove a scratchpad (the original one stays) |
 | `padSet <id> <label\|key\|moveKey\|direction\|style\|keepMine\|layout> <value>` | Change one setting (`layout`: `default` `dwindle` `master` `scrolling` `monocle` `lua:<name>`) |
-| `appAdd <id> <command>` / `appRemove <id> <index>` | Apps started at login |
+| `appSearch <words>` | Installed apps matching the words, as `app:<id>` entries |
+| `appAdd <id> <app:id\|command>` / `appRemove <id> <index>` | Apps started at login (`app:<id>` comes from the search; a plain command also works) |
 | `appsRestart <id>` / `appsStart <id>` | Close the apps the Hub started on that layer and start them again / start them only if none are open |
 
-The id `fullscreen` is the Fullscreen layer (it takes `layout`, `appAdd`, `appRemove`, `appsRestart`, `toggle`; its key is `fullscreenKey`).
+The id `fullscreen` is the Fullscreen layer (it takes `label` (its name), `layout`, `appAdd`, `appRemove`, `appsRestart`, `toggle`; its key is `fullscreenKey`).
 | `magnet <id\|none>` | Scratchpad that holds the fullscreen games |
 | `fullscreenKey <keys\|none>` | Key for the fullscreen layer |
 | `toggle <id>` | Show or hide a scratchpad |
@@ -59,7 +60,7 @@ The plugins have their own small CLIs that the Hub uses: `omarchy-shell scratchp
 
 - Runs Lua inside Hyprland (`hyprctl eval` of the bundled `hub.lua`): registers the scratchpad keys at runtime (`hl.bind`), and it sets each layer's tiling layout with a workspace rule on its own special workspace (Default clears it again, removing the Hub gives it back), and for scratchpads that slide in from another side it sets the `specialWorkspaceIn/Out` animation style just before the toggle and puts your own value back right after. It re-registers everything after a Hyprland config reload and removes everything when the Hub stops.
 - Reads `~/.config/hypr/bindings.lua` and `hyprctl -j binds` and `-j animations`. Never writes a Hyprland config file.
-- Starts your "apps at login" with `uwsm-app -- <command>`, once per Hyprland session (a marker file in `$XDG_RUNTIME_DIR/akton1-hub`), or on demand with Start / Restart. It remembers which windows it started (window addresses, in `$XDG_RUNTIME_DIR/akton1-hub/owned.json`, read with `hyprctl -j clients`) and closes only those on Restart, with a normal close request. With apps on the Fullscreen layer, the Hub sets `keepOthers` in Fullscreen App Auto Workspace so those apps are not sent back to your normal workspace.
+- Starts your "apps at login" with `uwsm-app -- gtk-launch <app>.desktop` for apps picked from the search (terminal apps like cliamp get their terminal, as in Omarchy's launcher) or `uwsm-app -- <command>` for typed commands (a bare command that is a terminal app is switched to its desktop entry). If fewer windows open than apps are listed, the flyout says so, once per Hyprland session (a marker file in `$XDG_RUNTIME_DIR/akton1-hub`), or on demand with Start / Restart. It remembers which windows it started (window addresses, in `$XDG_RUNTIME_DIR/akton1-hub/owned.json`, read with `hyprctl -j clients`) and closes only those on Restart, with a normal close request. With apps on the Fullscreen layer, the Hub sets `keepOthers` in Fullscreen App Auto Workspace so those apps are not sent back to your normal workspace.
 - Writes `~/.local/state/akton1-hub/state.json` (your settings), `$XDG_RUNTIME_DIR/akton1-hub/snapshot.json` (what the bar icon reads), and pushes pads and the fullscreen layer to the other AktOn1 plugins through their CLIs, only when they are installed and on.
 - Network: only when you press Install, which runs `omarchy plugin add <repo> --enable --yes` for a plugin in the built-in list (the AktOn1 GitHub repositories). No telemetry.
 

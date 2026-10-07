@@ -33,6 +33,10 @@ Panel {
     ? [{ id: "all", glyph: linkGlyph, title: "AktOn1 plugins" }]
     : viewList.map(v => ({ id: v.id, glyph: v.glyph, title: v.title }))
 
+  readonly property var appEntries: (DesktopEntries.applications.values || []).map(Model.entryInfo)
+  readonly property var appChoices: Model.appOptions(appEntries)
+  function appTitle(app) { return Model.appTitle(app, appEntries) }
+
   function viewsFor(view) {
     return view === "all" ? viewList : viewList.filter(v => v.id === view)
   }

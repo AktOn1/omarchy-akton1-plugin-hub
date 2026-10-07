@@ -8,8 +8,7 @@ Column {
 
   required property var hub
   readonly property var fsState: hub.fullscreenState
-  readonly property string userKey: hub.snap.detected.fullscreen || ""
-  readonly property var padOptions: [{ value: "none", label: "Fullscreen (default)" }].concat(hub.snap.state.pads.map(p => ({ value: p.id, label: p.label })))
+  readonly property var padOptions: [{ value: "none", label: hub.snap.state.fullscreen.label + " (default)" }].concat(hub.snap.state.pads.map(p => ({ value: p.id, label: p.label })))
   spacing: Style.space(10)
 
   PanelSectionHeader { text: "FULLSCREEN"; foreground: root.hub.foreground; fontFamily: root.hub.fontFamily }
@@ -17,25 +16,7 @@ Column {
   Text {
     textFormat: Text.PlainText
     width: parent.width
-    text: "Fullscreen games move to their own layer by themselves. This key hides and shows it."
-    color: root.hub.dim
-    font.family: root.hub.fontFamily
-    font.pixelSize: Style.font.bodySmall
-    wrapMode: Text.WordWrap
-  }
-
-  KeyButton {
-    hub: root.hub
-    slot: "fullscreen|key"
-    value: root.hub.snap.state.fullscreenKey
-    emptyText: root.userKey !== "" ? root.userKey + " (your own binding)" : "not set"
-  }
-
-  Text {
-    visible: root.userKey !== ""
-    textFormat: Text.PlainText
-    width: parent.width
-    text: "Your bindings.lua already binds " + root.userKey + " for this. The Hub leaves it alone."
+    text: "Fullscreen games move to this layer by themselves."
     color: root.hub.dim
     font.family: root.hub.fontFamily
     font.pixelSize: Style.font.bodySmall

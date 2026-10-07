@@ -9,6 +9,8 @@
 //      toggle <id> | install <plugin id> | refresh
 //      padSet also takes layout (dwindle, master, scrolling, monocle, lua:<name>, default); id "fullscreen" is the Fullscreen layer
 //      appsStart <id> | appsRestart <id>   (id "fullscreen" is the Fullscreen layer)
+//      appSearch <words>   lists installed apps; appAdd takes "app:<id>" from that list or a plain command
+//      padSet also takes label for the Fullscreen layer (its name)
 
 import QtQuick
 import Quickshell
@@ -237,15 +239,39 @@ Scope {
     }
   }
 
+  function desktopEntries() {
+    return (DesktopEntries.applications.values || []).map(Model.entryInfo)
+  }
+
   function launchApps(id) {
     const layer = Model.findLayer(state, id)
     if (!layer || layer.apps.length === 0) return
+    const entries = desktopEntries()
     tracking[id] = { until: Date.now() + 30000, before: clients.map(c => c.address) }
+    launchChecks = Object.assign({}, launchChecks, { [id]: true })
+    launchCheckTimer.restart()
     let code = ""
     for (const app of layer.apps)
-      code += "__akton1_hub.launch(" + Model.luaValue(id) + ", " + Model.luaValue(Model.startupCommand(app)) + "); "
+      code += "__akton1_hub.launch(" + Model.luaValue(id) + ", " + Model.luaValue(Model.startupCommand(Model.resolveApp(app, entries))) + "); "
     Quickshell.execDetached(["hyprctl", "eval", code])
     clientsDebounce.restart()
+  }
+
+  // A launch that opens no window (wrong command, app not installed, a terminal app started without a terminal) says so.
+  property var launchChecks: ({})
+  Timer {
+    id: launchCheckTimer
+    interval: 12000
+    onTriggered: {
+      const missed = []
+      for (const id in root.launchChecks) {
+        const layer = Model.findLayer(root.state, id)
+        const opened = (root.owned[id] || []).length
+        if (layer && opened < layer.apps.length) missed.push(layer.label + " (" + opened + " of " + layer.apps.length + " opened)")
+      }
+      root.launchChecks = ({})
+      if (missed.length > 0) root.say("Some apps did not open: " + missed.join(", ") + ". Remove the app and add it again from the search list.")
+    }
   }
 
   function startApps(id, restart) {
@@ -381,7 +407,7 @@ Scope {
       if (p.key === key && !(p.id === exceptPad && exceptField === "key")) return p.label + " (Hub)"
       if (!p.builtin && p.moveKey === key && !(p.id === exceptPad && exceptField === "moveKey")) return "Move to " + p.label + " (Hub)"
     }
-    if (draft.fullscreenKey === key && exceptPad !== "fullscreen") return "Fullscreen layer (Hub)"
+    if (draft.fullscreenKey === key && exceptPad !== "fullscreen") return draft.fullscreen.label + " (Hub)"
     return ""
   }
 
@@ -449,8 +475,12 @@ Scope {
         pad.layout = v
         return ""
       }
-      if (pad.layer) return "the Fullscreen layer has only a layout and apps here (its key is set under the Fullscreen section)"
-      if (field === "label") { pad.label = value; return "" }
+      if (field === "label") {
+        if (value.trim() === "") return "give a name"
+        pad.label = value
+        return ""
+      }
+      if (pad.layer) return "the Fullscreen layer has a name, a layout and apps here (its key is the fullscreenKey command)"
       if (field === "key" || field === "moveKey") {
         if (field === "moveKey" && pad.builtin) return "the original scratchpad keeps Omarchy's own move key"
         return setKey(d, pad, field, value)
@@ -470,8 +500,11 @@ Scope {
     return mutate(d => {
       const pad = Model.findLayer(d, id)
       if (!pad) return "no scratchpad '" + id + "'"
-      if (command.trim() === "") return "give a command"
-      pad.apps.push(command.trim())
+      const cmd = command.trim()
+      if (cmd === "") return "give a command"
+      const wanted = Model.appId(cmd)
+      if (wanted !== "" && !desktopEntries().some(e => e.id === wanted)) return "no installed app '" + wanted + "' (omarchy-shell akton1-hub appSearch <name>)"
+      pad.apps.push(cmd)
       return ""
     })
   }
@@ -554,6 +587,7 @@ Scope {
     function padSet(id: string, field: string, value: string): string { return root.padSet(id, field, value) }
     function appAdd(id: string, command: string): string { return root.appAdd(id, command) }
     function appRemove(id: string, index: string): string { return root.appRemove(id, index) }
+    function appSearch(words: string): string { return JSON.stringify(Model.matchApps(root.desktopEntries(), words)) }
     function magnet(id: string): string { return root.setMagnet(id) }
     function fullscreenKey(keys: string): string { return root.setFullscreenKey(keys) }
     function toggle(id: string): string { return root.toggle(id) }

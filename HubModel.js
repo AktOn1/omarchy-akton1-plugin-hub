@@ -94,6 +94,7 @@ function cleanApps(list) {
 function cleanLayer(raw) {
   var l = fullscreenLayer()
   if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    l.label = cleanText(raw.label, 24) || l.label
     l.layout = cleanLayout(raw.layout)
     l.apps = cleanApps(raw.apps)
   }
@@ -367,8 +368,75 @@ function effectiveMagnet(state) {
   return state.magnet !== "" ? state.magnet : FULLSCREEN_ID
 }
 
-function startupCommand(command) {
-  return "uwsm-app -- " + command
+function shellQuote(s) {
+  return "'" + String(s).replace(/'/g, "'\\''") + "'"
+}
+
+// A layer's app is either "app:<desktop id>" (picked from the installed apps) or a plain command.
+function appId(app) {
+  var m = /^app:(.+)$/.exec(String(app))
+  return m ? m[1] : ""
+}
+
+// Picked apps go through gtk-launch, like Omarchy's own launcher, so terminal apps (cliamp, btop...) get their terminal.
+function startupCommand(app) {
+  var id = appId(app)
+  if (id !== "") return "uwsm-app -- gtk-launch " + shellQuote(id + ".desktop")
+  return "uwsm-app -- " + app
+}
+
+// Plain object from a Quickshell DesktopEntry.
+function entryInfo(e) {
+  return {
+    id: String(e.id || ""), name: String(e.name || e.id || ""), generic: String(e.genericName || ""),
+    comment: String(e.comment || ""), keywords: (e.keywords || []).map(String).join(" "),
+    terminal: e.runInTerminal === true, hidden: e.noDisplay === true,
+    command: (e.command || []).map(String)
+  }
+}
+
+function appOptions(entries) {
+  return entries.filter(function (e) { return e.id !== "" && !e.hidden })
+    .sort(function (a, b) { return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1 })
+    .map(function (e) {
+      var what = e.generic || e.comment
+      return { value: "app:" + e.id, label: e.name, description: (what ? what + " - " : "") + (e.terminal ? "terminal app, " : "") + e.id }
+    })
+}
+
+// Installed apps whose name, kind, id or keywords contain every word of the query (names starting with it first).
+function matchApps(entries, query) {
+  var words = String(query).toLowerCase().split(/\s+/).filter(function (w) { return w !== "" })
+  if (words.length === 0) return []
+  var hits = entries.filter(function (e) {
+    if (e.id === "" || e.hidden) return false
+    var hay = (e.name + " " + e.generic + " " + e.id + " " + e.keywords).toLowerCase()
+    return words.every(function (w) { return hay.indexOf(w) >= 0 })
+  })
+  hits.sort(function (a, b) {
+    var pa = a.name.toLowerCase().indexOf(words[0]) === 0 ? 0 : 1
+    var pb = b.name.toLowerCase().indexOf(words[0]) === 0 ? 0 : 1
+    return pa !== pb ? pa - pb : (a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1)
+  })
+  return hits.slice(0, 10).map(function (e) { return { app: "app:" + e.id, name: e.name, kind: e.generic, terminal: e.terminal } })
+}
+
+// A bare command that is really a terminal app (cliamp, btop) is started through its desktop entry, which opens the terminal.
+function resolveApp(app, entries) {
+  if (appId(app) !== "" || /\s/.test(String(app).trim())) return app
+  var base = String(app).trim().split("/").pop()
+  for (var i = 0; i < entries.length; i++) {
+    var e = entries[i]
+    if (e.terminal && e.command.length === 1 && e.command[0].split("/").pop() === base) return "app:" + e.id
+  }
+  return app
+}
+
+function appTitle(app, entries) {
+  var id = appId(app)
+  if (id === "") return String(app)
+  for (var i = 0; i < entries.length; i++) if (entries[i].id === id) return entries[i].name + (entries[i].terminal ? " (terminal)" : "")
+  return id + " (not installed)"
 }
 
 // ---- views (what the bar shows) ---------------------------------------------------
@@ -415,5 +483,6 @@ if (typeof module !== "undefined") module.exports = {
   keyUsable: keyUsable, findConflict: findConflict, detectBindings: detectBindings, luaConfig: luaConfig,
   luaValue: luaValue, luaStart: luaStart, animSpec: animSpec, framePads: framePads, views: views, missing: missing,
   pluginStatus: pluginStatus, tooltip: tooltip, installCommand: installCommand, padNeedsHubBind: padNeedsHubBind,
-  findPad: findPad, glyph: glyph, catalogEntry: catalogEntry, startupCommand: startupCommand
+  findPad: findPad, glyph: glyph, catalogEntry: catalogEntry, startupCommand: startupCommand,
+  appId: appId, entryInfo: entryInfo, appOptions: appOptions, matchApps: matchApps, resolveApp: resolveApp, appTitle: appTitle
 }
