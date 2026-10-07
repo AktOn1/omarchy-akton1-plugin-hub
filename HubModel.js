@@ -18,24 +18,46 @@ var LAYOUTS = [
 
 // The AktOn1 plugins the Hub knows about. None of them is bundled: the Hub only
 // knows where each one lives and how to add it.
+var STORE_URL = "https://plugins.omarchy.org/"
+var VIEW_IDS = ["scratchpads", "fullscreen"]
+
 var CATALOG = [
   {
     id: "io.github.akton1.scratchpad-frame",
     name: "Scratchpad Frame",
     target: "scratchpad-frame",
     view: "scratchpads",
+    ownView: false,
+    listed: false,
     repo: "https://github.com/AktOn1/omarchy-scratchpad-frame.git",
-    blurb: "A frame around each scratchpad that slides in and out with it."
+    page: "https://github.com/AktOn1/omarchy-scratchpad-frame",
+    blurb: "A frame around each scratchpad that slides in and out with it.",
+    info: "Draws a decorative frame (24 styles) around the scratchpad and slides it in and out with it. Works alone on SUPER+S; with the Hub every scratchpad can have its own frame."
   },
   {
     id: "io.github.akton1.fullscreen-app-auto-workspace",
     name: "Fullscreen App Auto Workspace",
     target: "fullscreen-app-auto-workspace",
     view: "fullscreen",
+    ownView: true,
+    listed: true,
     repo: "https://github.com/AktOn1/omarchy-fullscreen-app-auto-workspace.git",
-    blurb: "Fullscreen games get their own layer and come and go with one key."
+    page: "https://github.com/AktOn1/omarchy-fullscreen-app-auto-workspace",
+    blurb: "Fullscreen games get their own layer and come and go with one key.",
+    info: "Moves every game that goes fullscreen to its own hidden layer, so your normal workspace stays clean. One key brings the game back or sends it away; it can mute the game while hidden."
   }
 ]
+
+// The Hub's own scratchpads: always there, nothing to install.
+var BUILTIN_VIEW = {
+  id: "scratchpads",
+  name: "Scratchpads",
+  info: "Create several scratchpads, each with its own key, slide-in side, layout and apps that start at login. Part of the Hub itself."
+}
+
+function storeLink(entry) {
+  return entry.listed ? STORE_URL + "plugin.html?id=" + encodeURIComponent(entry.id) : ""
+}
 
 function catalogEntry(id) {
   for (var i = 0; i < CATALOG.length; i++) if (CATALOG[i].id === id) return CATALOG[i]
@@ -58,7 +80,7 @@ function fullscreenLayer() {
 }
 
 function defaultState() {
-  return { version: 1, mode: "connected", pads: [builtinPad()], magnet: "", fullscreenKey: "", fullscreen: fullscreenLayer() }
+  return { version: 1, mode: "connected", separate: [], hidden: [], pads: [builtinPad()], magnet: "", fullscreenKey: "", fullscreen: fullscreenLayer() }
 }
 
 function cleanText(v, max) {
@@ -122,11 +144,25 @@ function cleanPad(p, taken) {
   }
 }
 
+function cleanViewList(list) {
+  var out = []
+  if (Array.isArray(list)) for (var i = 0; i < list.length; i++) if (VIEW_IDS.indexOf(list[i]) >= 0 && out.indexOf(list[i]) < 0) out.push(list[i])
+  return out
+}
+
+// "connected" (one icon for all), "separated" (one icon each) or "mixed".
+function modeOf(separate) {
+  var n = VIEW_IDS.filter(function (v) { return separate.indexOf(v) >= 0 }).length
+  return n === 0 ? "connected" : (n === VIEW_IDS.length ? "separated" : "mixed")
+}
+
 // Accepts whatever was on disk (or typed) and returns a complete, valid state.
 function cleanState(raw) {
   var s = defaultState()
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return s
-  if (MODES.indexOf(raw.mode) >= 0) s.mode = raw.mode
+  s.separate = Array.isArray(raw.separate) ? cleanViewList(raw.separate) : (raw.mode === "separated" ? VIEW_IDS.slice() : [])
+  s.hidden = cleanViewList(raw.hidden)
+  s.mode = modeOf(s.separate)
   var pads = []
   var taken = []
   if (Array.isArray(raw.pads)) {
@@ -471,6 +507,45 @@ function pluginStatus(listJson) {
   return out
 }
 
+// The list in the settings page: the Hub's own scratchpads first, then every AktOn1 plugin the Hub knows.
+// state: "builtin" | "on" | "off" (installed, turned off) | "missing"; viewId is "" when the plugin has no icon of its own.
+function pluginRows(plugins) {
+  var rows = [{ key: BUILTIN_VIEW.id, name: BUILTIN_VIEW.name, info: BUILTIN_VIEW.info, viewId: BUILTIN_VIEW.id, state: "builtin", entry: null }]
+  CATALOG.forEach(function (c) {
+    var p = plugins[c.id]
+    rows.push({ key: c.id, name: c.name, info: c.info, viewId: c.ownView ? c.view : "", entry: c,
+                state: p && p.installed ? (p.enabled ? "on" : "off") : "missing" })
+  })
+  return rows
+}
+
+// What to type in a terminal to get (or turn on) this plugin.
+function commandFor(row) {
+  return row.state === "off" ? "omarchy plugin enable " + row.entry.id : installCommand(row.entry)
+}
+
+// What the bar shows: one Hub icon for the connected plugins, one icon per separated plugin that is not hidden.
+// If that leaves nothing, the Hub icon shows everything, so the settings gear can always be reached.
+function barIcons(state, plugins) {
+  var vs = views(plugins)
+  var joined = vs.filter(function (v) { return state.separate.indexOf(v.id) < 0 })
+  var out = []
+  if (joined.length > 0) out.push({ id: "all", glyph: glyph(0xf0337), title: "AktOn1 plugins" })
+  vs.forEach(function (v) {
+    if (state.separate.indexOf(v.id) >= 0 && state.hidden.indexOf(v.id) < 0) out.push({ id: v.id, glyph: v.glyph, title: v.title })
+  })
+  if (out.length === 0) out.push({ id: "all", glyph: glyph(0xf0337), title: "AktOn1 plugins" })
+  return out
+}
+
+// The sections a flyout shows: "all" = the connected plugins (everything when none are connected).
+function viewsFor(state, plugins, id) {
+  var vs = views(plugins)
+  if (id !== "all") return vs.filter(function (v) { return v.id === id })
+  var joined = vs.filter(function (v) { return state.separate.indexOf(v.id) < 0 })
+  return joined.length > 0 ? joined : vs
+}
+
 function tooltip(mode, viewTitle, titles) {
   if (mode === "connected") return "AktOn1 plugins: connected" + (titles.length ? " (" + titles.join(", ") + ")" : "")
   return viewTitle + ": AktOn1 plugin, disconnected"
@@ -482,7 +557,8 @@ if (typeof module !== "undefined") module.exports = {
   cleanPad: cleanPad, slug: slug, normalizeKey: normalizeKey, keyParts: keyParts, keyFromEvent: keyFromEvent,
   keyUsable: keyUsable, findConflict: findConflict, detectBindings: detectBindings, luaConfig: luaConfig,
   luaValue: luaValue, luaStart: luaStart, animSpec: animSpec, framePads: framePads, views: views, missing: missing,
-  pluginStatus: pluginStatus, tooltip: tooltip, installCommand: installCommand, padNeedsHubBind: padNeedsHubBind,
+  pluginStatus: pluginStatus, tooltip: tooltip, barIcons: barIcons, viewsFor: viewsFor, modeOf: modeOf, storeLink: storeLink,
+  pluginRows: pluginRows, commandFor: commandFor, STORE_URL: STORE_URL, VIEW_IDS: VIEW_IDS, BUILTIN_VIEW: BUILTIN_VIEW, installCommand: installCommand, padNeedsHubBind: padNeedsHubBind,
   findPad: findPad, glyph: glyph, catalogEntry: catalogEntry, startupCommand: startupCommand,
   appId: appId, entryInfo: entryInfo, appOptions: appOptions, matchApps: matchApps, resolveApp: resolveApp, appTitle: appTitle
 }

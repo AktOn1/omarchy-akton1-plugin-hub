@@ -3,7 +3,7 @@
 // Scratchpad Frame and the magnet to Fullscreen App Auto Workspace when they are installed,
 // and publishes a snapshot the bar widget reads.
 //
-// IPC: omarchy-shell akton1-hub state | mode <connected|separated> | padAdd <label> [direction]
+// IPC: omarchy-shell akton1-hub state | mode <connected|separated> | separate <scratchpads|fullscreen> <on|off> | barShow <scratchpads|fullscreen> <on|off> | padAdd <label> [direction]
 //      padRemove <id> | padSet <id> <label|key|moveKey|direction|style|keepMine|layout> <value>
 //      appAdd <id> <command> | appRemove <id> <index> | magnet <id|none|off> | fullscreenKey <keys|none>
 //      toggle <id> | install <plugin id> | refresh
@@ -444,7 +444,40 @@ Scope {
   }
 
   function setMode(mode) {
-    return mutate(d => { if (mode !== "connected" && mode !== "separated") return "mode is connected or separated"; d.mode = mode; return "" })
+    return mutate(d => {
+      if (mode !== "connected" && mode !== "separated") return "mode is connected or separated"
+      d.separate = mode === "separated" ? Model.VIEW_IDS.slice() : []
+      return ""
+    })
+  }
+
+  function viewArg(view, d) {
+    if (Model.VIEW_IDS.indexOf(view) < 0) return "unknown plugin '" + view + "' (" + Model.VIEW_IDS.join(", ") + ")"
+    return ""
+  }
+
+  function flag(value) { return value === "on" || value === "true" || value === "1" }
+
+  // separate <view> on|off: on = its own icon, off = joined to the Hub icon
+  function setSeparate(view, value) {
+    return mutate(d => {
+      const err = viewArg(view, d)
+      if (err) return err
+      d.separate = d.separate.filter(v => v !== view)
+      if (flag(value)) d.separate.push(view)
+      return ""
+    })
+  }
+
+  // barShow <view> on|off: whether a separated plugin has its icon in the bar
+  function setBarShow(view, value) {
+    return mutate(d => {
+      const err = viewArg(view, d)
+      if (err) return err
+      d.hidden = d.hidden.filter(v => v !== view)
+      if (!flag(value)) d.hidden.push(view)
+      return ""
+    })
   }
 
   function padAdd(label, direction) {
@@ -590,6 +623,8 @@ Scope {
     target: "akton1-hub"
     function state(): string { return JSON.stringify(root.snapshot()) }
     function mode(value: string): string { return value === "" ? root.state.mode : root.setMode(value) }
+    function separate(view: string, value: string): string { return root.setSeparate(view, value) }
+    function barShow(view: string, value: string): string { return root.setBarShow(view, value) }
     function padAdd(label: string, direction: string): string { return root.padAdd(label, direction) }
     function padRemove(id: string): string { return root.padRemove(id) }
     function padSet(id: string, field: string, value: string): string { return root.padSet(id, field, value) }

@@ -9,15 +9,17 @@ Column {
   required property var hub
   property string view: "all"
   readonly property var shown: hub.viewsFor(view)
-  readonly property bool connected: hub.snap.state.mode === "connected"
+  readonly property bool connected: view === "all"
+  readonly property bool settings: hub.settingsOpen
+  function has(id) { return shown.some(v => v.id === id) }
 
   spacing: Style.space(14)
 
   PanelHero {
     id: hero
     width: parent.width
-    title: fly.view === "all" ? "AktOn1 Plugins" : (fly.shown.length ? fly.shown[0].title : "AktOn1")
-    meta: fly.connected ? "AktOn1 plugins: connected" : "AktOn1 plugin: disconnected"
+    title: fly.settings ? "AktOn1 settings" : (fly.view === "all" ? "AktOn1 Plugins" : (fly.shown.length ? fly.shown[0].title : "AktOn1"))
+    meta: fly.settings ? "Bar icons, plugins and where to get them" : (fly.connected ? "AktOn1 plugins: connected" : "AktOn1 plugin: disconnected")
     foreground: fly.hub.foreground
     fontFamily: fly.hub.fontFamily
     iconComponent: Component {
@@ -30,16 +32,17 @@ Column {
       }
     }
     trailingControl: Component {
-      ToggleSwitch {
-        id: modeSwitch
-        checked: !fly.connected
+      Button {
+        id: gear
+        iconText: fly.settings ? "" : fly.hub.gearGlyph
+        text: fly.settings ? "Back" : ""
+        bordered: true
+        focusable: true
+        selected: fly.settings
+        fontFamily: fly.hub.fontFamily
         foreground: fly.hub.foreground
-        onToggled: fly.hub.run(["mode", fly.connected ? "separated" : "connected"])
-        PanelToolTip {
-          visible: modeSwitch.containsMouse
-          text: fly.connected ? "Disconnect: one icon per plugin" : "Connect: one icon for all"
-          fontFamily: fly.hub.fontFamily
-        }
+        tooltipText: fly.settings ? "Back to the plugin settings" : "Settings: bar icons, plugins, install"
+        onClicked: fly.hub.settingsOpen = !fly.hub.settingsOpen
       }
     }
   }
@@ -66,20 +69,20 @@ Column {
     wrapMode: Text.WordWrap
   }
 
+  SettingsPage {
+    visible: fly.settings
+    hub: fly.hub
+    width: parent.width
+  }
+
   ScratchpadsSection {
-    visible: fly.view === "all" || fly.view === "scratchpads"
+    visible: !fly.settings && fly.has("scratchpads")
     hub: fly.hub
     width: parent.width
   }
 
   FullscreenSection {
-    visible: (fly.view === "all" || fly.view === "fullscreen") && fly.hub.snap.plugins["io.github.akton1.fullscreen-app-auto-workspace"].enabled
-    hub: fly.hub
-    width: parent.width
-  }
-
-  InstallSection {
-    visible: missing.length > 0 && fly.view !== "fullscreen"
+    visible: !fly.settings && fly.has("fullscreen")
     hub: fly.hub
     width: parent.width
   }

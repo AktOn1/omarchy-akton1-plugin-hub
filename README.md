@@ -6,12 +6,12 @@ One bar icon and one flyout for the AktOn1 plugins. It lists the ones you have i
 - **Fullscreen** (shows up when Fullscreen App Auto Workspace is installed and on): the default fullscreen layer, named Fullscreen. It looks like any scratchpad card (a name box you can edit, key, layout, apps), and each layer or scratchpad card has a "Fullscreen games land here" switch. Only one can be on (the others are greyed out until you switch it off; with none on, games are not moved by themselves). The "Mute the game while the layer is hidden" switch appears below the one that is on.
 - **Layout** (every scratchpad and Fullscreen): Default, Dwindle, Master, Scrolling or Monocle, set on that layer's own workspace. Default leaves Hyprland alone. A custom Lua layout can be set from the command line (`padSet <id> layout lua:<name>`).
 - **Start / Restart apps** (every scratchpad and Fullscreen): starts the layer's apps now, or closes the ones the Hub started there and starts them again, so you never have to restart Omarchy. Only windows the Hub itself started are closed (never a window you put there yourself, never a game).
-- **More AktOn1 plugins**: plugins you have not installed yet, with an Install button. A plugin that is installed but turned off gets an Enable button.
+- **Settings (gear icon in the flyout header)**: a second page with everything about the plugins themselves. *Bar icons*: "All in one icon" (connected) or "One icon each" (separated). *AktOn1 plugins*: one entry per plugin (the Hub's own Scratchpads, Scratchpad Frame, Fullscreen App Auto Workspace), each with an info bubble saying what it does. For an installed plugin with an icon you can switch **Connected** (inside the Hub icon) off to give it its own icon, and then choose whether that icon shows in the bar at all. A plugin that is not installed shows an **Install** button, its **Omarchy store** and **GitHub** links and the install command with a **Copy** button; an installed-but-off plugin shows **Enable**. Plugins that are not installed never get an icon or a pane. The bar always keeps at least one icon, so the gear stays reachable.
 
-Two modes, switched with the toggle in the flyout header (or right-click on the icon):
+The two switches combine freely, so you can have the Hub icon for most plugins and a separate icon for just one. "All in one icon" and "One icon each" set every plugin at once; right-click on an icon does the same.
 
-- **Connected**: one icon, one flyout, all settings stacked. Tooltip: "AktOn1 plugins: connected".
-- **Separated**: one icon and flyout per plugin. Tooltip: "Scratchpads: AktOn1 plugin, disconnected".
+- **Connected** plugin: lives in the Hub icon's flyout. Tooltip: "AktOn1 plugins: connected".
+- **Separate** plugin: its own icon and flyout. Tooltip: "Scratchpads: AktOn1 plugin, disconnected".
 
 ## Install
 
@@ -39,7 +39,9 @@ The flyout is only a face for these commands (`omarchy-shell akton1-hub ...`), s
 | Command | Effect |
 |---|---|
 | `state` | Everything as JSON |
-| `mode connected\|separated` | Switch mode |
+| `mode connected\|separated` | Connect or separate every plugin at once |
+| `separate <scratchpads\|fullscreen> <on\|off>` | Give one plugin its own icon (`on`) or put it back in the Hub icon (`off`) |
+| `barShow <scratchpads\|fullscreen> <on\|off>` | Show or hide the icon of a separated plugin |
 | `padAdd <label> [direction]` | New scratchpad (direction `bottom` `top` `left` `right`) |
 | `padRemove <id>` | Remove a scratchpad (the original one stays) |
 | `padSet <id> <label\|key\|moveKey\|direction\|style\|keepMine\|layout> <value>` | Change one setting (`layout`: `default` `dwindle` `master` `scrolling` `monocle` `lua:<name>`) |

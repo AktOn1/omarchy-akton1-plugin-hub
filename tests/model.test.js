@@ -153,6 +153,54 @@ t("tooltips name the mode", () => {
   assert.ok(M.tooltip("separated", "Scratchpads", []).includes("disconnected"))
 })
 
+t("an old separated state file becomes every plugin separate; mode is derived", () => {
+  const old = M.cleanState({ mode: "separated" })
+  assert.deepStrictEqual(old.separate, ["scratchpads", "fullscreen"])
+  assert.strictEqual(old.mode, "separated")
+  assert.strictEqual(M.cleanState({ mode: "connected" }).mode, "connected")
+  const mixed = M.cleanState({ separate: ["fullscreen", "fullscreen", "bogus"], hidden: ["x", "scratchpads"] })
+  assert.deepStrictEqual(mixed.separate, ["fullscreen"])
+  assert.deepStrictEqual(mixed.hidden, ["scratchpads"])
+  assert.strictEqual(mixed.mode, "mixed")
+  assert.strictEqual(M.defaultState().separate.length, 0)
+})
+
+t("bar icons: joined plugins share the Hub icon, separate ones get their own unless hidden", () => {
+  const both = M.pluginStatus([{ id: "io.github.akton1.fullscreen-app-auto-workspace", enabled: true }])
+  const ids = (s) => M.barIcons(M.cleanState(s), both).map(i => i.id)
+  assert.deepStrictEqual(ids({}), ["all"])
+  assert.deepStrictEqual(ids({ separate: ["fullscreen"] }), ["all", "fullscreen"])
+  assert.deepStrictEqual(ids({ separate: ["scratchpads", "fullscreen"] }), ["scratchpads", "fullscreen"])
+  assert.deepStrictEqual(ids({ separate: ["scratchpads", "fullscreen"], hidden: ["fullscreen"] }), ["scratchpads"])
+  assert.deepStrictEqual(ids({ separate: ["fullscreen"], hidden: ["fullscreen"] }), ["all"])
+  assert.deepStrictEqual(ids({ hidden: ["fullscreen", "scratchpads"] }), ["all"])
+  assert.deepStrictEqual(ids({ separate: ["scratchpads", "fullscreen"], hidden: ["scratchpads", "fullscreen"] }), ["all"])
+  // fullscreen not installed: it never gets an icon, the rest still works
+  const only = M.pluginStatus([])
+  assert.deepStrictEqual(M.barIcons(M.cleanState({ separate: ["fullscreen"] }), only).map(i => i.id), ["all"])
+})
+
+t("flyout sections: Hub icon holds the joined plugins, everything when none are joined", () => {
+  const both = M.pluginStatus([{ id: "io.github.akton1.fullscreen-app-auto-workspace", enabled: true }])
+  const secs = (s, id) => M.viewsFor(M.cleanState(s), both, id).map(v => v.id)
+  assert.deepStrictEqual(secs({}, "all"), ["scratchpads", "fullscreen"])
+  assert.deepStrictEqual(secs({ separate: ["fullscreen"] }, "all"), ["scratchpads"])
+  assert.deepStrictEqual(secs({ separate: ["fullscreen"] }, "fullscreen"), ["fullscreen"])
+  assert.deepStrictEqual(secs({ separate: ["scratchpads", "fullscreen"] }, "all"), ["scratchpads", "fullscreen"])
+})
+
+t("settings rows: own scratchpads, then each plugin with state, store link and command", () => {
+  const plugins = M.pluginStatus([{ id: "io.github.akton1.fullscreen-app-auto-workspace", enabled: false }])
+  const rows = M.pluginRows(plugins)
+  assert.deepStrictEqual(rows.map(r => r.state), ["builtin", "missing", "off"])
+  assert.deepStrictEqual(rows.map(r => r.viewId), ["scratchpads", "", "fullscreen"])
+  assert.ok(rows.every(r => r.info.length > 20))
+  assert.strictEqual(M.commandFor(rows[1]), "omarchy plugin add https://github.com/AktOn1/omarchy-scratchpad-frame.git --enable")
+  assert.strictEqual(M.commandFor(rows[2]), "omarchy plugin enable io.github.akton1.fullscreen-app-auto-workspace")
+  assert.strictEqual(M.storeLink(M.CATALOG[0]), "")
+  assert.strictEqual(M.storeLink(M.CATALOG[1]), "https://plugins.omarchy.org/plugin.html?id=io.github.akton1.fullscreen-app-auto-workspace")
+})
+
 t("install command is the plain omarchy plugin add", () => {
   assert.strictEqual(M.installCommand(M.CATALOG[0]), "omarchy plugin add https://github.com/AktOn1/omarchy-scratchpad-frame.git --enable")
 })

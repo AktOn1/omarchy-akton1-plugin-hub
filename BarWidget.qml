@@ -13,6 +13,7 @@ Panel {
   readonly property string snapshotPath: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/akton1-hub/snapshot.json"
   readonly property string linkGlyph: Model.glyph(0xf0337)
   readonly property string unlinkGlyph: Model.glyph(0xf0338)
+  readonly property string gearGlyph: Model.glyph(0xf0493)
 
   property var snap: ({ state: Model.defaultState(), plugins: Model.pluginStatus([]), detected: { pads: {}, fullscreen: "" },
                         styles: [], message: "", installing: "", catalog: Model.CATALOG })
@@ -21,28 +22,38 @@ Panel {
   property string activeView: "all"
   property string capturing: ""
   property string notice: ""
+  property bool settingsOpen: false
+  property var icons: []
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property color urgent: bar ? bar.urgent : Color.urgent
   readonly property color dim: Qt.darker(foreground, 1.55)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property bool vertical: bar ? bar.vertical : false
-  readonly property bool connected: snap.state.mode === "connected"
-  readonly property var viewList: Model.views(snap.plugins)
-  readonly property var icons: connected
-    ? [{ id: "all", glyph: linkGlyph, title: "AktOn1 plugins" }]
-    : viewList.map(v => ({ id: v.id, glyph: v.glyph, title: v.title }))
+
+  function refreshIcons() {
+    const next = Model.barIcons(snap.state, snap.plugins)
+    if (JSON.stringify(next) !== JSON.stringify(icons)) icons = next
+  }
+  onSnapChanged: refreshIcons()
+  onIconsChanged: {
+    if (opened && icons.length > 0 && !icons.some(i => i.id === activeView)) activeView = icons[0].id
+  }
 
   readonly property var appEntries: (DesktopEntries.applications.values || []).map(Model.entryInfo)
   readonly property var appChoices: Model.appOptions(appEntries)
   function appTitle(app) { return Model.appTitle(app, appEntries) }
 
-  function viewsFor(view) {
-    return view === "all" ? viewList : viewList.filter(v => v.id === view)
-  }
+  function viewsFor(view) { return Model.viewsFor(snap.state, snap.plugins, view) }
 
   function tooltipFor(icon) {
-    return Model.tooltip(snap.state.mode, icon.title, viewList.map(v => v.title))
+    return Model.tooltip(icon.id === "all" ? "connected" : "separated", icon.title, viewsFor("all").map(v => v.title))
+  }
+
+  function openLink(url) { Quickshell.execDetached(["xdg-open", url]) }
+  function copyText(text) {
+    Quickshell.execDetached(["sh", "-c", "printf %s \"$1\" | wl-copy", "sh", text])
+    notify("Copied: " + text)
   }
 
   // ---- talking to the service ---------------------------------------------------
@@ -123,15 +134,19 @@ Panel {
       return root.opened ? "open" : "closed"
     }
     function close(): string { root.close(); return "closed" }
+    function settings(value: string): string {
+      if (!root.opened) root.toggleView(root.icons[0].id)
+      root.settingsOpen = value !== "off"
+      return root.settingsOpen ? "settings" : "flyout"
+    }
   }
 
-  onOpenedChanged: if (!opened) capturing = ""
-  onConnectedChanged: if (opened) close()
+  onOpenedChanged: if (!opened) { capturing = ""; settingsOpen = false }
 
   implicitWidth: grid.implicitWidth
   implicitHeight: grid.implicitHeight
 
-  Component.onCompleted: fullscreenTimer.restart()
+  Component.onCompleted: { refreshIcons(); fullscreenTimer.restart() }
 
   Grid {
     id: grid
@@ -155,7 +170,7 @@ Panel {
           tooltipText: root.tooltipFor(slot.modelData)
           active: root.opened && root.activeView === slot.modelData.id
           onPressed: function(buttonCode) {
-            if (buttonCode === Qt.RightButton) root.run(["mode", root.connected ? "separated" : "connected"])
+            if (buttonCode === Qt.RightButton) root.run(["mode", root.snap.state.mode === "connected" ? "separated" : "connected"])
             else root.toggleView(slot.modelData.id)
           }
         }
@@ -174,7 +189,7 @@ Panel {
             id: keys
             anchors.fill: parent
             focus: true
-            Keys.onEscapePressed: root.close()
+            Keys.onEscapePressed: { if (root.settingsOpen) root.settingsOpen = false; else root.close() }
 
             KeyCapture { hub: root }
 
