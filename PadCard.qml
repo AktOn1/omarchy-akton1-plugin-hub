@@ -10,6 +10,9 @@ Column {
   required property var pad
   readonly property bool isLayer: pad.layer === true
   readonly property string userKey: isLayer ? (hub.snap.detected.fullscreen || "") : (hub.snap.detected.pads[pad.id] || "")
+  readonly property string magnet: hub.snap.state.magnet
+  readonly property bool isMagnet: isLayer ? magnet === "" : magnet === pad.id
+  readonly property bool magnetFree: magnet === "off"
   readonly property int running: hub.snap.running ? (hub.snap.running[pad.id] || 0) : 0
   readonly property var layoutOptions: Model.layoutOptions([pad.layout])
   readonly property bool frameOn: hub.snap.plugins["io.github.akton1.scratchpad-frame"].enabled
@@ -147,19 +150,41 @@ Column {
   }
 
   Row {
-    visible: root.fullscreenOn && !root.isLayer
+    visible: root.fullscreenOn
     spacing: Style.space(8)
+    enabled: root.isMagnet || root.magnetFree
+    opacity: enabled ? 1 : 0.4
     ToggleSwitch {
-      checked: root.hub.snap.state.magnet === root.pad.id
+      checked: root.isMagnet
       foreground: root.hub.foreground
-      onToggled: root.hub.run(["magnet", checked ? "none" : root.pad.id])
+      onToggled: root.hub.run(["magnet", root.isMagnet ? "off" : (root.isLayer ? "none" : root.pad.id)])
     }
     Text {
       anchors.verticalCenter: parent.verticalCenter
       width: root.width - Style.space(60)
       wrapMode: Text.WordWrap
       textFormat: Text.PlainText
-      text: "Fullscreen games land here (only one scratchpad can)"
+      text: "Fullscreen games land here"
+      color: root.hub.foreground
+      font.family: root.hub.fontFamily
+      font.pixelSize: Style.font.bodySmall
+    }
+  }
+
+  Row {
+    visible: root.fullscreenOn && root.isMagnet
+    spacing: Style.space(8)
+    ToggleSwitch {
+      checked: root.hub.fullscreenState.muteOnHide === true
+      foreground: root.hub.foreground
+      onToggled: root.hub.setFullscreenOption("muteOnHide", checked ? "unset" : "true")
+    }
+    Text {
+      anchors.verticalCenter: parent.verticalCenter
+      width: root.width - Style.space(60)
+      wrapMode: Text.WordWrap
+      textFormat: Text.PlainText
+      text: "Mute the game while the layer is hidden"
       color: root.hub.foreground
       font.family: root.hub.fontFamily
       font.pixelSize: Style.font.bodySmall

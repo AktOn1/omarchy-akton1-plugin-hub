@@ -5,7 +5,7 @@
 //
 // IPC: omarchy-shell akton1-hub state | mode <connected|separated> | padAdd <label> [direction]
 //      padRemove <id> | padSet <id> <label|key|moveKey|direction|style|keepMine|layout> <value>
-//      appAdd <id> <command> | appRemove <id> <index> | magnet <id|none> | fullscreenKey <keys|none>
+//      appAdd <id> <command> | appRemove <id> <index> | magnet <id|none|off> | fullscreenKey <keys|none>
 //      toggle <id> | install <plugin id> | refresh
 //      padSet also takes layout (dwindle, master, scrolling, monocle, lua:<name>, default); id "fullscreen" is the Fullscreen layer
 //      appsStart <id> | appsRestart <id>   (id "fullscreen" is the Fullscreen layer)
@@ -42,6 +42,7 @@ Scope {
   property bool startupDone: false
   property bool framePushed: false
   property bool magnetPushed: false
+  property bool autoMoveOffPushed: false
   property var keepPushed: null
   property var clients: []
   property var owned: ({})
@@ -358,9 +359,15 @@ Scope {
       stylesProc.running = true
     }
     if (pluginReady("io.github.akton1.fullscreen-app-auto-workspace")) {
-      if (state.magnet !== "" || magnetPushed) {
-        Quickshell.execDetached(["omarchy-shell", "fullscreen-app-auto-workspace", "option", "layer", state.magnet !== "" ? state.magnet : "unset"])
-        magnetPushed = state.magnet !== ""
+      const padMagnet = state.magnet !== "" && state.magnet !== "off"
+      if (padMagnet || magnetPushed) {
+        Quickshell.execDetached(["omarchy-shell", "fullscreen-app-auto-workspace", "option", "layer", padMagnet ? state.magnet : "unset"])
+        magnetPushed = padMagnet
+      }
+      const autoOff = state.magnet === "off"
+      if (autoOff || autoMoveOffPushed) {
+        Quickshell.execDetached(["omarchy-shell", "fullscreen-app-auto-workspace", "option", "autoMove", autoOff ? "false" : "unset"])
+        autoMoveOffPushed = autoOff
       }
       const keep = Model.fullscreenKeepOthers(state)
       if (keep !== (keepPushed === true) && (keep || keepPushed !== null)) {
@@ -522,6 +529,7 @@ Scope {
 
   function setMagnet(id) {
     return mutate(d => {
+      if (id === "off") { d.magnet = "off"; return "" }
       if (id === "none" || id === "" || id === Model.FULLSCREEN_ID) { d.magnet = ""; return "" }
       if (!d.pads.some(p => p.id === id)) return "no scratchpad '" + id + "'"
       d.magnet = id

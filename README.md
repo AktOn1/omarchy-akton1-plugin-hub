@@ -3,7 +3,7 @@
 One bar icon and one flyout for the AktOn1 plugins. It lists the ones you have installed, shows their settings, and installs the ones you do not have yet. The Hub bundles none of them. Every AktOn1 plugin is installed on its own and works without the Hub.
 
 - **Scratchpads**: make several named scratchpads. Each has its own key, its own slide-in side (several different sides at once), its own frame style, its own tiling layout, and apps that start at login. The original `SUPER + S` scratchpad is there from the start. One scratchpad at most holds the fullscreen-game layer.
-- **Fullscreen** (shows up when Fullscreen App Auto Workspace is installed and on): the default fullscreen layer, named Fullscreen. It looks like any scratchpad card (a name box you can edit, key, layout, apps), and you choose whether fullscreen games go there (default) or to one of your scratchpads. Mute while hidden.
+- **Fullscreen** (shows up when Fullscreen App Auto Workspace is installed and on): the default fullscreen layer, named Fullscreen. It looks like any scratchpad card (a name box you can edit, key, layout, apps), and each layer or scratchpad card has a "Fullscreen games land here" switch. Only one can be on (the others are greyed out until you switch it off; with none on, games are not moved by themselves). The "Mute the game while the layer is hidden" switch appears below the one that is on.
 - **Layout** (every scratchpad and Fullscreen): Default, Dwindle, Master, Scrolling or Monocle, set on that layer's own workspace. Default leaves Hyprland alone. A custom Lua layout can be set from the command line (`padSet <id> layout lua:<name>`).
 - **Start / Restart apps** (every scratchpad and Fullscreen): starts the layer's apps now, or closes the ones the Hub started there and starts them again, so you never have to restart Omarchy. Only windows the Hub itself started are closed (never a window you put there yourself, never a game).
 - **More AktOn1 plugins**: plugins you have not installed yet, with an Install button. A plugin that is installed but turned off gets an Enable button.
@@ -48,7 +48,7 @@ The flyout is only a face for these commands (`omarchy-shell akton1-hub ...`), s
 | `appsRestart <id>` / `appsStart <id>` | Close the apps the Hub started on that layer and start them again / start them only if none are open |
 
 The id `fullscreen` is the Fullscreen layer (it takes `label` (its name), `layout`, `appAdd`, `appRemove`, `appsRestart`, `toggle`; its key is `fullscreenKey`).
-| `magnet <id\|none>` | Scratchpad that holds the fullscreen games |
+| `magnet <id\|none\|off>` | Where fullscreen games land: a scratchpad id, `none` = the Fullscreen layer (default), `off` = nowhere (games are not moved by themselves) |
 | `fullscreenKey <keys\|none>` | Key for the fullscreen layer |
 | `toggle <id>` | Show or hide a scratchpad |
 | `install <plugin id>` | Install (or enable) one of the AktOn1 plugins |

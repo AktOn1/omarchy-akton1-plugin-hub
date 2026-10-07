@@ -138,7 +138,7 @@ function cleanState(raw) {
   if (taken.indexOf("scratchpad") < 0) pads.unshift(builtinPad())
   else pads.sort(function (a, b) { return (b.builtin ? 1 : 0) - (a.builtin ? 1 : 0) })
   s.pads = pads
-  s.magnet = typeof raw.magnet === "string" && taken.concat(["scratchpad"]).indexOf(raw.magnet) >= 0 ? raw.magnet : ""
+  s.magnet = typeof raw.magnet === "string" && (raw.magnet === "off" || taken.concat(["scratchpad"]).indexOf(raw.magnet) >= 0) ? raw.magnet : ""
   s.fullscreenKey = normalizeKey(raw.fullscreenKey)
   s.fullscreen = cleanLayer(raw.fullscreen)
   return s
@@ -363,9 +363,9 @@ function framePads(state) {
   })
 }
 
-// Where fullscreen games go: the Fullscreen layer unless a scratchpad holds the magnet.
+// Where fullscreen games go: the Fullscreen layer unless a scratchpad holds the magnet; "off" = nowhere.
 function effectiveMagnet(state) {
-  return state.magnet !== "" ? state.magnet : FULLSCREEN_ID
+  return state.magnet === "off" ? "none" : state.magnet !== "" ? state.magnet : FULLSCREEN_ID
 }
 
 function shellQuote(s) {

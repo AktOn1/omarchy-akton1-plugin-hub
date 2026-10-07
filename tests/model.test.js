@@ -163,6 +163,9 @@ t("the Fullscreen layer exists from the start with no apps and the default layou
   assert.strictEqual(M.effectiveMagnet(s), "fullscreen")
   assert.strictEqual(M.effectiveMagnet(M.cleanState({ pads: [{ id: "n", label: "N" }], magnet: "n" })), "n")
   assert.strictEqual(M.fullscreenKeepOthers(s), false)
+  assert.strictEqual(M.cleanState({ magnet: "off" }).magnet, "off")
+  assert.strictEqual(M.effectiveMagnet(M.cleanState({ magnet: "off" })), "none")
+  assert.strictEqual(M.cleanState({ magnet: "ghost" }).magnet, "")
 })
 
 t("an old state file without the Fullscreen layer or layouts still loads", () => {
