@@ -16,7 +16,7 @@ The two switches combine freely, so you can have the Hub icon for most plugins a
 ## Install
 
 ```bash
-omarchy plugin add https://github.com/AktOn1/omarchy-plugin-hub.git --enable
+omarchy plugin add https://github.com/AktOn1/omarchy-akton1-plugin-hub.git --enable
 ```
 
 Then add "AktOn1 Plugins" to your bar (it is added to the right side when you enable it). Plugins are added disabled by default; `--enable` turns it on right away.
@@ -83,3 +83,7 @@ Removing the Hub drops its keys and leaves the other plugins as they are. Their 
 ## License
 
 MIT
+
+## Support
+
+Free and MIT licensed. If it is useful to you and you want to say thanks, you can [buy me a coffee on Ko-fi](https://ko-fi.com/akton1). Totally optional.
