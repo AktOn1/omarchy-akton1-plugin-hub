@@ -157,4 +157,48 @@ t("install command is the plain omarchy plugin add", () => {
   assert.strictEqual(M.installCommand(M.CATALOG[0]), "omarchy plugin add https://github.com/AktOn1/omarchy-scratchpad-frame.git --enable")
 })
 
+t("the Fullscreen layer exists from the start with no apps and the default layout", () => {
+  const s = M.defaultState()
+  assert.deepStrictEqual(s.fullscreen, { id: "fullscreen", label: "Fullscreen", layer: true, layout: "", apps: [] })
+  assert.strictEqual(M.effectiveMagnet(s), "fullscreen")
+  assert.strictEqual(M.effectiveMagnet(M.cleanState({ pads: [{ id: "n", label: "N" }], magnet: "n" })), "n")
+  assert.strictEqual(M.fullscreenKeepOthers(s), false)
+})
+
+t("an old state file without the Fullscreen layer or layouts still loads", () => {
+  const s = M.cleanState({ version: 1, pads: [{ id: "scratchpad" }, { id: "game", label: "Music", apps: ["cliamp"] }] })
+  assert.strictEqual(s.fullscreen.label, "Fullscreen")
+  assert.strictEqual(s.pads[1].layout, "")
+  assert.deepStrictEqual(s.pads[1].apps, ["cliamp"])
+})
+
+t("the Fullscreen layer keeps its own apps and layout, and apps make it keep non-game windows", () => {
+  const s = M.cleanState({ fullscreen: { label: "Hacked", layer: false, layout: "master", apps: ["steam", "  ", "discord"] } })
+  assert.strictEqual(s.fullscreen.label, "Fullscreen")
+  assert.strictEqual(s.fullscreen.layer, true)
+  assert.strictEqual(s.fullscreen.layout, "master")
+  assert.deepStrictEqual(s.fullscreen.apps, ["steam", "discord"])
+  assert.strictEqual(M.fullscreenKeepOthers(s), true)
+})
+
+t("no scratchpad can take the id fullscreen", () => {
+  const s = M.cleanState({ pads: [{ id: "fullscreen", label: "Fullscreen" }] })
+  assert.ok(s.pads.every(p => p.id !== "fullscreen"))
+  assert.strictEqual(M.slug("Fullscreen", []), "fullscreen-2")
+  assert.strictEqual(M.findLayer(s, "fullscreen").layer, true)
+})
+
+t("layout names: stock and Lua layouts pass, junk becomes default", () => {
+  for (const ok of ["dwindle", "master", "scrolling", "monocle", "lua:fractal"]) assert.strictEqual(M.cleanLayout(ok), ok)
+  for (const bad of ["", "Dwindle!", "a b", "$(rm)", 5, null, "lua:"]) assert.strictEqual(M.cleanLayout(bad), "")
+  const opts = M.layoutOptions(["lua:mine", "master", ""])
+  assert.deepStrictEqual(opts.map(o => o.value), ["", "dwindle", "master", "scrolling", "monocle", "lua:mine"])
+})
+
+t("every layer, Fullscreen included, hands its layout to the Lua runtime", () => {
+  const s = M.cleanState({ pads: [{ id: "n", label: "N", layout: "master" }], fullscreen: { layout: "monocle" } })
+  const cfg = M.luaConfig(s, {}, { pads: {}, fullscreen: "" })
+  assert.deepStrictEqual(cfg.layouts, [{ id: "scratchpad", layout: "" }, { id: "n", layout: "master" }, { id: "fullscreen", layout: "monocle" }])
+})
+
 console.log(n + " passed")

@@ -4,9 +4,11 @@
 // and publishes a snapshot the bar widget reads.
 //
 // IPC: omarchy-shell akton1-hub state | mode <connected|separated> | padAdd <label> [direction]
-//      padRemove <id> | padSet <id> <label|key|moveKey|direction|style|keepMine> <value>
+//      padRemove <id> | padSet <id> <label|key|moveKey|direction|style|keepMine|layout> <value>
 //      appAdd <id> <command> | appRemove <id> <index> | magnet <id|none> | fullscreenKey <keys|none>
 //      toggle <id> | install <plugin id> | refresh
+//      padSet also takes layout (dwindle, master, scrolling, monocle, lua:<name>, default); id "fullscreen" is the Fullscreen layer
+//      appsStart <id> | appsRestart <id>   (id "fullscreen" is the Fullscreen layer)
 
 import QtQuick
 import Quickshell
@@ -38,6 +40,14 @@ Scope {
   property bool startupDone: false
   property bool framePushed: false
   property bool magnetPushed: false
+  property var keepPushed: null
+  property var clients: []
+  property var owned: ({})
+  property var tracking: ({})
+  property var restarting: ({})
+  property bool ownedLoaded: false
+  property bool ownedMissing: false
+  property bool adoptPending: false
 
   function say(text) {
     message = text
@@ -82,6 +92,22 @@ Scope {
   }
 
   FileView {
+    id: ownedFile
+    path: root.ready ? root.runtimeDir + "/owned.json" : ""
+    atomicWrites: true
+    onLoaded: {
+      let raw = {}
+      try { raw = JSON.parse(text()) } catch (e) { raw = {} }
+      const clean = {}
+      for (const id in raw) if (Array.isArray(raw[id])) clean[id] = raw[id].filter(a => /^0x[0-9a-f]+$/.test(a))
+      root.owned = clean
+      root.ownedLoaded = true
+      root.refreshClients()
+    }
+    onLoadFailed: { root.ownedMissing = true; root.ownedLoaded = true }
+  }
+
+  FileView {
     id: snapshotFile
     path: root.ready ? root.runtimeDir + "/snapshot.json" : ""
     atomicWrites: true
@@ -99,8 +125,10 @@ Scope {
   }
 
   function snapshot() {
+    const running = {}
+    for (const id in owned) running[id] = owned[id].length
     return { state: state, plugins: plugins, detected: detected, styles: styles, message: message,
-             installing: installing, catalog: Model.CATALOG }
+             installing: installing, catalog: Model.CATALOG, running: running }
   }
 
   // ---- reading the desktop ------------------------------------------------------
@@ -148,6 +176,93 @@ Scope {
       const list = stylesOut.text.trim().split(/\s+/).filter(s => s !== "")
       if (JSON.stringify(list) !== JSON.stringify(root.styles)) { root.styles = list; root.publish() }
     }
+  }
+
+  // ---- which windows belong to a layer's apps -------------------------------------
+  // Apps the Hub starts are remembered by window address (for this Hyprland session), so Restart
+  // closes only those and never a window you put on the scratchpad yourself or a game.
+
+  Process {
+    id: clientsProc
+    command: ["hyprctl", "-j", "clients"]
+    stdout: StdioCollector { id: clientsOut }
+    onExited: (code) => {
+      if (code !== 0) return
+      let list = []
+      try { list = JSON.parse(clientsOut.text) } catch (e) { return }
+      root.clients = list.filter(c => c && c.workspace && typeof c.address === "string")
+      root.onClients()
+    }
+  }
+  function refreshClients() { clientsProc.running = false; clientsProc.running = true }
+  Timer { id: clientsDebounce; interval: 350; onTriggered: root.refreshClients() }
+  Timer { id: restartWatch; interval: 1000; repeat: true; running: Object.keys(root.restarting).length > 0; onTriggered: root.refreshClients() }
+
+  // Games are never "the layer's apps": the Fullscreen layer holds them and Restart must not close one.
+  function isGame(c) {
+    return /\.exe$|^steam_app_|^gamescope$/.test(c.class || "") || (c.tags || []).some(t => String(t).replace(/\*$/, "") === "game")
+  }
+  function onPad(id) { return root.clients.filter(c => c.workspace.name === "special:" + id && !isGame(c)) }
+
+  function onClients() {
+    const now = Date.now()
+    const next = {}
+    let changed = false
+    const everyLayer = Model.allLayers(state)
+    for (const layer of everyLayer) {
+      const here = onPad(layer.id).map(c => c.address)
+      let mine = (owned[layer.id] || []).filter(a => here.indexOf(a) >= 0)
+      const t = tracking[layer.id]
+      if (t && now < t.until) {
+        for (const a of here) if (t.before.indexOf(a) < 0 && mine.indexOf(a) < 0) mine.push(a)
+      } else if (t) {
+        delete tracking[layer.id]
+      }
+      if (adoptPending && layer.apps.length > 0 && layer.id !== Model.FULLSCREEN_ID) mine = here.slice()
+      next[layer.id] = mine
+      if (JSON.stringify(mine) !== JSON.stringify(owned[layer.id] || [])) changed = true
+    }
+    adoptPending = false
+    if (changed || Object.keys(owned).length !== Object.keys(next).length) {
+      owned = next
+      ownedFile.setText(JSON.stringify(next) + "\n")
+      publish()
+    }
+    for (const id in restarting) {
+      if ((owned[id] || []).length === 0 || now > restarting[id]) {
+        delete restarting[id]
+        restarting = Object.assign({}, restarting)
+        launchApps(id)
+      }
+    }
+  }
+
+  function launchApps(id) {
+    const layer = Model.findLayer(state, id)
+    if (!layer || layer.apps.length === 0) return
+    tracking[id] = { until: Date.now() + 30000, before: clients.map(c => c.address) }
+    let code = ""
+    for (const app of layer.apps)
+      code += "__akton1_hub.launch(" + Model.luaValue(id) + ", " + Model.luaValue(Model.startupCommand(app)) + "); "
+    Quickshell.execDetached(["hyprctl", "eval", code])
+    clientsDebounce.restart()
+  }
+
+  function startApps(id, restart) {
+    const layer = Model.findLayer(state, id)
+    if (!layer) return "error: no scratchpad '" + id + "'"
+    if (layer.apps.length === 0) return "error: " + layer.label + " has no apps listed"
+    const mine = owned[id] || []
+    if (mine.length > 0 && !restart) return "error: " + layer.label + " apps are already running (use restart)"
+    if (restart && mine.length > 0) {
+      let code = ""
+      for (const a of mine) code += "__akton1_hub.close(" + Model.luaValue(a) + "); "
+      Quickshell.execDetached(["hyprctl", "eval", code])
+      restarting = Object.assign({}, restarting, { [id]: Date.now() + 6000 })
+      return "ok"
+    }
+    launchApps(id)
+    return "ok"
   }
 
   // ---- applying -----------------------------------------------------------------
@@ -221,6 +336,11 @@ Scope {
         Quickshell.execDetached(["omarchy-shell", "fullscreen-app-auto-workspace", "option", "layer", state.magnet !== "" ? state.magnet : "unset"])
         magnetPushed = state.magnet !== ""
       }
+      const keep = Model.fullscreenKeepOthers(state)
+      if (keep !== (keepPushed === true) && (keep || keepPushed !== null)) {
+        Quickshell.execDetached(["omarchy-shell", "fullscreen-app-auto-workspace", "option", "keepOthers", keep ? "true" : "unset"])
+      }
+      keepPushed = keep
     }
   }
 
@@ -229,15 +349,14 @@ Scope {
     id: startupProc
     command: ["sh", "-c", "m=\"$1/started-${HYPRLAND_INSTANCE_SIGNATURE:-none}\"; if [ -e \"$m\" ]; then echo skip; else : > \"$m\"; echo launch; fi", "sh", root.runtimeDir]
     stdout: StdioCollector { id: startupOut }
-    onExited: if (startupOut.text.trim() === "launch") root.launchStartupApps()
+    onExited: {
+      if (startupOut.text.trim() === "launch") root.launchStartupApps()
+      else if (root.ownedMissing) { root.adoptPending = true; root.refreshClients() }
+    }
   }
 
   function launchStartupApps() {
-    let code = ""
-    for (const pad of state.pads)
-      for (const app of pad.apps)
-        code += "__akton1_hub.launch(" + Model.luaValue(pad.id) + ", " + Model.luaValue(Model.startupCommand(app)) + "); "
-    if (code !== "") Quickshell.execDetached(["hyprctl", "eval", code])
+    for (const layer of Model.allLayers(state)) launchApps(layer.id)
   }
 
   // ---- changing settings -------------------------------------------------------------
@@ -321,8 +440,16 @@ Scope {
 
   function padSet(id, field, value) {
     return mutate(d => {
-      const pad = d.pads.find(p => p.id === id)
+      const pad = Model.findLayer(d, id)
       if (!pad) return "no scratchpad '" + id + "'"
+      if (field === "layout") {
+        const v = value.trim().toLowerCase()
+        if (v === "" || v === "default" || v === "none") { pad.layout = ""; return "" }
+        if (Model.cleanLayout(v) !== v) return "layout is default, dwindle, master, scrolling, monocle or lua:<name>"
+        pad.layout = v
+        return ""
+      }
+      if (pad.layer) return "the Fullscreen layer has only a layout and apps here (its key is set under the Fullscreen section)"
       if (field === "label") { pad.label = value; return "" }
       if (field === "key" || field === "moveKey") {
         if (field === "moveKey" && pad.builtin) return "the original scratchpad keeps Omarchy's own move key"
@@ -335,13 +462,13 @@ Scope {
       }
       if (field === "style") { pad.style = value === "default" || value === "none" ? "" : value; return "" }
       if (field === "keepMine") { pad.keepMine = value === "true" || value === "on" || value === "1"; return "" }
-      return "unknown field '" + field + "' (label, key, moveKey, direction, style, keepMine)"
+      return "unknown field '" + field + "' (label, key, moveKey, direction, style, keepMine, layout)"
     })
   }
 
   function appAdd(id, command) {
     return mutate(d => {
-      const pad = d.pads.find(p => p.id === id)
+      const pad = Model.findLayer(d, id)
       if (!pad) return "no scratchpad '" + id + "'"
       if (command.trim() === "") return "give a command"
       pad.apps.push(command.trim())
@@ -351,7 +478,7 @@ Scope {
 
   function appRemove(id, index) {
     return mutate(d => {
-      const pad = d.pads.find(p => p.id === id)
+      const pad = Model.findLayer(d, id)
       const i = parseInt(index)
       if (!pad) return "no scratchpad '" + id + "'"
       if (!(i >= 0 && i < pad.apps.length)) return "no app " + index
@@ -362,7 +489,7 @@ Scope {
 
   function setMagnet(id) {
     return mutate(d => {
-      if (id === "none" || id === "") { d.magnet = ""; return "" }
+      if (id === "none" || id === "" || id === Model.FULLSCREEN_ID) { d.magnet = ""; return "" }
       if (!d.pads.some(p => p.id === id)) return "no scratchpad '" + id + "'"
       d.magnet = id
       return ""
@@ -380,6 +507,10 @@ Scope {
   }
 
   function toggle(id) {
+    if (id === Model.FULLSCREEN_ID) {
+      Quickshell.execDetached(["omarchy-shell", "fullscreen-app-auto-workspace", "toggle"])
+      return "ok"
+    }
     const pad = Model.findPad(state, id)
     if (!pad) return "error: no scratchpad '" + id + "'"
     Quickshell.execDetached(["hyprctl", "eval", "__akton1_hub.toggle(" + Model.luaValue(id) + ", " + Model.luaValue(pad.direction) + ")"])
@@ -426,6 +557,8 @@ Scope {
     function magnet(id: string): string { return root.setMagnet(id) }
     function fullscreenKey(keys: string): string { return root.setFullscreenKey(keys) }
     function toggle(id: string): string { return root.toggle(id) }
+    function appsStart(id: string): string { return root.startApps(id, false) }
+    function appsRestart(id: string): string { return root.startApps(id, true) }
     function install(id: string): string { return root.install(id) }
     function refresh(): string { root.refreshPlugins(); root.refreshBinds(); bindingsFile.reload(); root.scheduleApply(); return "ok" }
   }
@@ -437,6 +570,8 @@ Scope {
         root.refreshBinds()
         bindingsFile.reload()
         root.scheduleApply()
+      } else if (event.name === "openwindow" || event.name === "closewindow" || event.name.indexOf("movewindow") === 0) {
+        clientsDebounce.restart()
       }
     }
   }
@@ -448,6 +583,6 @@ Scope {
   }
 
   Component.onDestruction: {
-    Quickshell.execDetached(["hyprctl", "eval", "if __akton1_hub then __akton1_hub.stop(); __akton1_hub = nil end"])
+    Quickshell.execDetached(["hyprctl", "eval", "if __akton1_hub then __akton1_hub.shutdown(); __akton1_hub = nil end"])
   }
 }

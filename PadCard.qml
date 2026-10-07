@@ -8,7 +8,10 @@ Column {
 
   required property var hub
   required property var pad
-  readonly property string userKey: hub.snap.detected.pads[pad.id] || ""
+  readonly property bool isLayer: pad.layer === true
+  readonly property string userKey: isLayer ? "" : (hub.snap.detected.pads[pad.id] || "")
+  readonly property int running: hub.snap.running ? (hub.snap.running[pad.id] || 0) : 0
+  readonly property var layoutOptions: Model.layoutOptions([pad.layout])
   readonly property bool frameOn: hub.snap.plugins["io.github.akton1.scratchpad-frame"].enabled
   readonly property bool fullscreenOn: hub.snap.plugins["io.github.akton1.fullscreen-app-auto-workspace"].enabled
   readonly property var styleOptions: [{ value: "default", label: "Shared style" }].concat(hub.snap.styles.map(s => ({ value: s, label: s })))
@@ -27,8 +30,20 @@ Column {
     spacing: Style.space(8)
     width: parent.width
 
+    Text {
+      visible: root.isLayer
+      width: parent.width - showButton.width - parent.spacing
+      anchors.verticalCenter: parent.verticalCenter
+      textFormat: Text.PlainText
+      text: root.pad.label
+      color: root.hub.foreground
+      font.family: root.hub.fontFamily
+      font.pixelSize: Style.font.body
+      font.bold: true
+    }
     TextField {
       id: nameField
+      visible: !root.isLayer
       width: parent.width - showButton.width - (removeButton.visible ? removeButton.width : 0) - parent.spacing * (removeButton.visible ? 2 : 1)
       text: root.pad.label
       foreground: root.hub.foreground
@@ -42,7 +57,7 @@ Column {
       focusable: true
       fontFamily: root.hub.fontFamily
       foreground: root.hub.foreground
-      tooltipText: "Slide this scratchpad in or out"
+      tooltipText: root.isLayer ? "Show or hide the Fullscreen layer (opens only when something is on it)" : "Slide this scratchpad in or out"
       onClicked: root.hub.run(["toggle", root.pad.id])
     }
     Button {
@@ -57,11 +72,12 @@ Column {
     }
   }
 
-  Caption { text: "KEY" }
+  Caption { visible: !root.isLayer; text: "KEY" }
   KeyButton {
+    visible: !root.isLayer
     hub: root.hub
     slot: root.pad.id + "|key"
-    value: root.pad.key
+    value: root.pad.key || ""
     emptyText: root.pad.builtin ? "SUPER + S (Omarchy default)" : "not set"
   }
 
@@ -81,7 +97,7 @@ Column {
     Row {
       spacing: Style.space(8)
       ToggleSwitch {
-        checked: root.pad.keepMine
+        checked: root.pad.keepMine === true
         foreground: root.hub.foreground
         onToggled: root.hub.run(["padSet", root.pad.id, "keepMine", checked ? "false" : "true"])
       }
@@ -99,25 +115,26 @@ Column {
   }
 
   Column {
-    visible: !root.pad.builtin
+    visible: !root.pad.builtin && !root.isLayer
     width: parent.width
     spacing: Style.space(8)
     Caption { text: "MOVE WINDOW HERE" }
     KeyButton {
       hub: root.hub
       slot: root.pad.id + "|moveKey"
-      value: root.pad.moveKey
+      value: root.pad.moveKey || ""
     }
   }
 
   Row {
+    visible: !root.isLayer
     spacing: Style.space(12)
     Dropdown {
       width: Style.space(150)
       label: "Slides in from"
       fontFamily: root.hub.fontFamily
       options: [{ value: "bottom", label: "Bottom" }, { value: "top", label: "Top" }, { value: "left", label: "Left" }, { value: "right", label: "Right" }]
-      value: root.pad.direction
+      value: root.pad.direction || "bottom"
       onChanged: function(v) { root.hub.run(["padSet", root.pad.id, "direction", v]) }
     }
     Dropdown {
@@ -126,13 +143,22 @@ Column {
       label: "Frame"
       fontFamily: root.hub.fontFamily
       options: root.styleOptions
-      value: root.pad.style !== "" ? root.pad.style : "default"
+      value: root.pad.style ? root.pad.style : "default"
       onChanged: function(v) { root.hub.run(["padSet", root.pad.id, "style", v]) }
     }
   }
 
+  Dropdown {
+    width: Style.space(190)
+    label: "Layout"
+    fontFamily: root.hub.fontFamily
+    options: root.layoutOptions
+    value: root.pad.layout
+    onChanged: function(v) { root.hub.run(["padSet", root.pad.id, "layout", v === "" ? "default" : v]) }
+  }
+
   Row {
-    visible: root.fullscreenOn
+    visible: root.fullscreenOn && !root.isLayer
     spacing: Style.space(8)
     ToggleSwitch {
       checked: root.hub.snap.state.magnet === root.pad.id
@@ -151,7 +177,26 @@ Column {
     }
   }
 
-  Caption { text: "APPS STARTED AT LOGIN" }
+  Row {
+    spacing: Style.space(8)
+    width: parent.width
+    Caption {
+      anchors.verticalCenter: parent.verticalCenter
+      width: parent.width - restartButton.width - parent.spacing
+      text: "APPS STARTED AT LOGIN" + (root.running > 0 ? "  (" + root.running + " open)" : "")
+    }
+    Button {
+      id: restartButton
+      visible: root.pad.apps.length > 0
+      text: root.running > 0 ? "Restart apps" : "Start apps"
+      bordered: true
+      focusable: true
+      fontFamily: root.hub.fontFamily
+      foreground: root.hub.foreground
+      tooltipText: root.running > 0 ? "Close the apps the Hub started here and start them again" : "Start these apps now"
+      onClicked: root.hub.run(["appsRestart", root.pad.id])
+    }
+  }
   Repeater {
     model: root.pad.apps
     delegate: Row {

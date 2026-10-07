@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Commons
 import qs.Ui
+import "HubModel.js" as Model
 
 Column {
   id: root
@@ -8,10 +9,10 @@ Column {
   required property var hub
   readonly property var fsState: hub.fullscreenState
   readonly property string userKey: hub.snap.detected.fullscreen || ""
-  readonly property var padOptions: [{ value: "none", label: "Its own layer (default)" }].concat(hub.snap.state.pads.map(p => ({ value: p.id, label: p.label })))
+  readonly property var padOptions: [{ value: "none", label: "Fullscreen (default)" }].concat(hub.snap.state.pads.map(p => ({ value: p.id, label: p.label })))
   spacing: Style.space(10)
 
-  PanelSectionHeader { text: "FULLSCREEN LAYER"; foreground: root.hub.foreground; fontFamily: root.hub.fontFamily }
+  PanelSectionHeader { text: "FULLSCREEN"; foreground: root.hub.foreground; fontFamily: root.hub.fontFamily }
 
   Text {
     textFormat: Text.PlainText
@@ -39,6 +40,12 @@ Column {
     font.family: root.hub.fontFamily
     font.pixelSize: Style.font.bodySmall
     wrapMode: Text.WordWrap
+  }
+
+  PadCard {
+    hub: root.hub
+    pad: root.hub.snap.state.fullscreen
+    width: parent.width
   }
 
   Dropdown {

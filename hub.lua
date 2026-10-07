@@ -5,8 +5,11 @@
 --
 -- M.start(cfg): cfg.pads  = { { id, key, moveKey, direction, label, builtin } ... }
 --               cfg.commands = { { key, command, label } ... }  (plain shell commands on a key)
+--               cfg.layouts = { { id, layout } ... }  (workspace layout per special workspace, "" = Hyprland's own)
 --               cfg.anim  = { specialWorkspaceIn = {enabled, speed, bezier, style}, specialWorkspaceOut = ... }
 -- M.launch(id, command): start a command on special:<id> without showing it
+-- M.close(address): close one window (a normal close request, the app may ask to save)
+-- M.shutdown(): stop and also give back the layouts this module set
 
 local previous = rawget(_G, "__akton1_hub")
 if previous and previous.stop then
@@ -14,6 +17,9 @@ if previous and previous.stop then
 end
 
 local M = {}
+-- Layouts set per special workspace; kept across a reload of this file so a cleared one can be undone.
+local layouts = (previous and previous.layouts) or {}
+M.layouts = layouts
 local binds, restores = {}, {}
 local anim = nil
 local restore_id = 0
@@ -68,6 +74,16 @@ end
 function M.start(cfg)
   M.stop()
   anim = cfg.anim
+  for _, item in ipairs(cfg.layouts or {}) do
+    local layout = item.layout or ""
+    if layout ~= "" then
+      pcall(hl.workspace_rule, { workspace = "special:" .. item.id, layout = layout })
+      layouts[item.id] = layout
+    elseif layouts[item.id] then
+      pcall(hl.workspace_rule, { workspace = "special:" .. item.id, layout = "" })
+      layouts[item.id] = nil
+    end
+  end
   for _, item in ipairs(cfg.commands or {}) do
     if item.key and item.key ~= "" and item.command and item.command ~= "" then
       add_bind(item.key, hl.dsp.exec_cmd(item.command), "AktOn1 Hub: " .. (item.label or item.command))
@@ -94,6 +110,23 @@ end
 
 function M.launch(id, command)
   hl.exec_cmd(command, { workspace = "special:" .. id .. " silent" })
+end
+
+function M.close(address)
+  for _, window in ipairs(hl.get_windows()) do
+    if window.address == address then
+      hl.dispatch(hl.dsp.window.close({ window = window }))
+      return
+    end
+  end
+end
+
+function M.shutdown()
+  M.stop()
+  for id in pairs(layouts) do
+    pcall(hl.workspace_rule, { workspace = "special:" .. id, layout = "" })
+    layouts[id] = nil
+  end
 end
 
 function M.stop()

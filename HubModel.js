@@ -7,6 +7,14 @@ var DEFAULT_KEY = "SUPER + S"
 var DEFAULT_MOVE_KEY = "SUPER + ALT + S"
 var DIRECTIONS = ["bottom", "top", "left", "right"]
 var MODES = ["connected", "separated"]
+var FULLSCREEN_ID = "fullscreen"
+var LAYOUTS = [
+  { value: "", label: "Default" },
+  { value: "dwindle", label: "Dwindle" },
+  { value: "master", label: "Master" },
+  { value: "scrolling", label: "Scrolling" },
+  { value: "monocle", label: "Monocle" }
+]
 
 // The AktOn1 plugins the Hub knows about. None of them is bundled: the Hub only
 // knows where each one lives and how to add it.
@@ -42,11 +50,15 @@ function installCommand(entry) {
 
 function builtinPad() {
   return { id: "scratchpad", label: "Scratchpad", builtin: true, key: DEFAULT_KEY, moveKey: DEFAULT_MOVE_KEY,
-           direction: "bottom", style: "", keepMine: false, apps: [] }
+           direction: "bottom", style: "", keepMine: false, layout: "", apps: [] }
+}
+
+function fullscreenLayer() {
+  return { id: FULLSCREEN_ID, label: "Fullscreen", layer: true, layout: "", apps: [] }
 }
 
 function defaultState() {
-  return { version: 1, mode: "connected", pads: [builtinPad()], magnet: "", fullscreenKey: "" }
+  return { version: 1, mode: "connected", pads: [builtinPad()], magnet: "", fullscreenKey: "", fullscreen: fullscreenLayer() }
 }
 
 function cleanText(v, max) {
@@ -58,23 +70,43 @@ function slug(label, taken) {
   if (base === "") base = "pad"
   var id = base
   var n = 2
-  while (taken.indexOf(id) >= 0) id = base + "-" + (n++)
+  while (taken.indexOf(id) >= 0 || id === FULLSCREEN_ID) id = base + "-" + (n++)
   return id
+}
+
+// "dwindle", "master", "lua:name": what Hyprland accepts as a workspace layout; anything else is "default".
+function cleanLayout(v) {
+  var t = cleanText(v, 40)
+  return /^[a-z][a-z0-9_-]*(:[A-Za-z0-9_.-]+)?$/.test(t) ? t : ""
+}
+
+function cleanApps(list) {
+  var apps = []
+  if (Array.isArray(list)) {
+    for (var i = 0; i < list.length && apps.length < 20; i++) {
+      var c = cleanText(list[i], 400)
+      if (c !== "") apps.push(c)
+    }
+  }
+  return apps
+}
+
+function cleanLayer(raw) {
+  var l = fullscreenLayer()
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    l.layout = cleanLayout(raw.layout)
+    l.apps = cleanApps(raw.apps)
+  }
+  return l
 }
 
 function cleanPad(p, taken) {
   if (!p || typeof p !== "object") return null
   var builtin = p.id === "scratchpad"
   var id = builtin ? "scratchpad" : String(p.id || "")
-  if (!builtin && !/^[a-z0-9][a-z0-9-]{0,23}$/.test(id)) id = slug(p.label || id, taken)
+  if (!builtin && (!/^[a-z0-9][a-z0-9-]{0,23}$/.test(id) || id === FULLSCREEN_ID)) id = slug(p.label || id, taken)
   if (taken.indexOf(id) >= 0) return null
-  var apps = []
-  if (Array.isArray(p.apps)) {
-    for (var i = 0; i < p.apps.length && apps.length < 20; i++) {
-      var c = cleanText(p.apps[i], 400)
-      if (c !== "") apps.push(c)
-    }
-  }
+  var apps = cleanApps(p.apps)
   return {
     id: id,
     label: cleanText(p.label, 24) || (builtin ? "Scratchpad" : id),
@@ -84,6 +116,7 @@ function cleanPad(p, taken) {
     direction: DIRECTIONS.indexOf(p.direction) >= 0 ? p.direction : "bottom",
     style: cleanText(p.style, 40),
     keepMine: p.keepMine === true,
+    layout: cleanLayout(p.layout),
     apps: apps
   }
 }
@@ -106,12 +139,39 @@ function cleanState(raw) {
   s.pads = pads
   s.magnet = typeof raw.magnet === "string" && taken.concat(["scratchpad"]).indexOf(raw.magnet) >= 0 ? raw.magnet : ""
   s.fullscreenKey = normalizeKey(raw.fullscreenKey)
+  s.fullscreen = cleanLayer(raw.fullscreen)
   return s
 }
 
 function findPad(state, id) {
   for (var i = 0; i < state.pads.length; i++) if (state.pads[i].id === id) return state.pads[i]
   return null
+}
+
+// A scratchpad or the Fullscreen layer, by id (the Fullscreen layer has no key, side or frame of its own here).
+function findLayer(state, id) {
+  return id === FULLSCREEN_ID ? state.fullscreen : findPad(state, id)
+}
+
+function allLayers(state) {
+  return state.pads.concat([state.fullscreen])
+}
+
+// Layouts to offer: the stock ones, plus any custom one in use (a Lua layout, or one found on a workspace).
+function layoutOptions(inUse) {
+  var out = LAYOUTS.slice()
+  var seen = {}
+  for (var i = 0; i < out.length; i++) seen[out[i].value] = true
+  for (var j = 0; j < (inUse || []).length; j++) {
+    var v = cleanLayout(inUse[j])
+    if (v !== "" && !seen[v]) { seen[v] = true; out.push({ value: v, label: v.replace(/^lua:/, "") + (v.indexOf("lua:") === 0 ? " (Lua)" : "") }) }
+  }
+  return out
+}
+
+// With apps of its own, the Fullscreen layer must not push non-game windows away.
+function fullscreenKeepOthers(state) {
+  return state.fullscreen.apps.length > 0
 }
 
 // ---- keys -------------------------------------------------------------------
@@ -245,7 +305,8 @@ function luaConfig(state, anim, detected) {
   var fsKey = state.fullscreenKey
   if (fsKey !== "" && !(detected.fullscreen && sameKey(detected.fullscreen, fsKey)))
     commands.push({ key: fsKey, command: "omarchy-shell fullscreen-app-auto-workspace toggle", label: "toggle fullscreen layer" })
-  return { pads: pads, commands: commands, anim: anim }
+  var layouts = allLayers(state).map(function (l) { return { id: l.id, layout: l.layout } })
+  return { pads: pads, commands: commands, anim: anim, layouts: layouts }
 }
 
 function luaValue(v) {
@@ -301,9 +362,9 @@ function framePads(state) {
   })
 }
 
-// The "fullscreen magnet": which special workspace the fullscreen layer is.
-function fullscreenLayer(state) {
-  return state.magnet !== "" ? state.magnet : ""
+// Where fullscreen games go: the Fullscreen layer unless a scratchpad holds the magnet.
+function effectiveMagnet(state) {
+  return state.magnet !== "" ? state.magnet : FULLSCREEN_ID
 }
 
 function startupCommand(command) {
@@ -321,7 +382,7 @@ function glyph(cp) {
 function views(plugins) {
   var out = [{ id: "scratchpads", title: "Scratchpads", glyph: glyph(0xf05b2), plugin: "io.github.akton1.scratchpad-frame" }]
   var fs = plugins["io.github.akton1.fullscreen-app-auto-workspace"]
-  if (fs && fs.installed && fs.enabled) out.push({ id: "fullscreen", title: "Fullscreen layer", glyph: glyph(0xf0293),
+  if (fs && fs.installed && fs.enabled) out.push({ id: "fullscreen", title: "Fullscreen", glyph: glyph(0xf0293),
                                      plugin: "io.github.akton1.fullscreen-app-auto-workspace" })
   return out
 }
@@ -348,7 +409,8 @@ function tooltip(mode, viewTitle, titles) {
 }
 
 if (typeof module !== "undefined") module.exports = {
-  DEFAULT_KEY: DEFAULT_KEY, DIRECTIONS: DIRECTIONS, CATALOG: CATALOG, defaultState: defaultState, cleanState: cleanState,
+  DEFAULT_KEY: DEFAULT_KEY, FULLSCREEN_ID: FULLSCREEN_ID, LAYOUTS: LAYOUTS, cleanLayout: cleanLayout, findLayer: findLayer,
+  allLayers: allLayers, effectiveMagnet: effectiveMagnet, layoutOptions: layoutOptions, fullscreenKeepOthers: fullscreenKeepOthers, DIRECTIONS: DIRECTIONS, CATALOG: CATALOG, defaultState: defaultState, cleanState: cleanState,
   cleanPad: cleanPad, slug: slug, normalizeKey: normalizeKey, keyParts: keyParts, keyFromEvent: keyFromEvent,
   keyUsable: keyUsable, findConflict: findConflict, detectBindings: detectBindings, luaConfig: luaConfig,
   luaValue: luaValue, luaStart: luaStart, animSpec: animSpec, framePads: framePads, views: views, missing: missing,
