@@ -57,8 +57,8 @@ var CATALOG = [
     repo: "https://github.com/AktOn1/omarchy-background-worker-talk-to-me.git",
     page: "https://github.com/AktOn1/omarchy-background-worker-talk-to-me",
     blurb: "An AI agent that changes your desktop asks you quick questions, and a TESTING banner shows while it works.",
-    info: "When a script or AI agent moves windows or changes the bar, it shows a countdown and a TESTING banner and asks you one-key questions (Y / N / ?) or a typed reply, instead of slow screenshot loops. Experimental: agents can also ask a plain question outside a test (off by default). Settings are on the command line: htm settings.",
-    note: "No icon: it works from the command line (htm). Settings: htm settings. Experimental questions outside a test: htm settings set questions on."
+    info: "When a script or AI agent moves windows or changes the bar, it shows a countdown and a TESTING banner and asks you one-key questions (Y / N / ?) or a typed reply, instead of slow screenshot loops. Experimental: agents can also ask a plain question outside a test (off by default). Settings are on the command line: talk-to-me settings.",
+    note: "No icon: it works from the command line (talk-to-me). Settings: talk-to-me settings. Experimental questions outside a test: talk-to-me settings set questions on."
   }
 ]
 
