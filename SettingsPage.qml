@@ -175,7 +175,7 @@ Column {
 
       Note {
         visible: row.modelData.state === "on" && row.modelData.viewId === ""
-        text: "No icon of its own: its frame styles appear on the scratchpad cards."
+        text: row.modelData.entry && row.modelData.entry.note ? row.modelData.entry.note : "No icon of its own."
       }
 
       Column {

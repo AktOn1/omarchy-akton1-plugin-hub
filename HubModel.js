@@ -32,7 +32,8 @@ var CATALOG = [
     repo: "https://github.com/AktOn1/omarchy-scratchpad-frame.git",
     page: "https://github.com/AktOn1/omarchy-scratchpad-frame",
     blurb: "A frame around each scratchpad that slides in and out with it.",
-    info: "Draws a decorative frame (24 styles) around the scratchpad and slides it in and out with it. Works alone on SUPER+S; with the Hub every scratchpad can have its own frame."
+    info: "Draws a decorative frame (24 styles) around the scratchpad and slides it in and out with it. Works alone on SUPER+S; with the Hub every scratchpad can have its own frame.",
+    note: "No icon of its own: its frame styles appear on the scratchpad cards."
   },
   {
     id: "io.github.akton1.fullscreen-app-auto-workspace",
@@ -45,6 +46,19 @@ var CATALOG = [
     page: "https://github.com/AktOn1/omarchy-fullscreen-app-auto-workspace",
     blurb: "Fullscreen games get their own layer and come and go with one key.",
     info: "Moves every game that goes fullscreen to its own hidden layer, so your normal workspace stays clean. One key brings the game back or sends it away; it can mute the game while hidden."
+  },
+  {
+    id: "io.github.akton1.ask-me-while-testing",
+    name: "Ask Me While Testing",
+    target: "ask-me-while-testing",
+    view: "",
+    ownView: false,
+    listed: false,
+    repo: "https://github.com/AktOn1/omarchy-ask-me-while-testing.git",
+    page: "https://github.com/AktOn1/omarchy-ask-me-while-testing",
+    blurb: "An AI agent that changes your desktop asks you quick questions, and a TESTING banner shows while it works.",
+    info: "When a script or AI agent moves windows or changes the bar, it shows a countdown and a TESTING banner and asks you one-key questions (Y / N / ?) or a typed reply, instead of slow screenshot loops. Experimental: agents can also ask a plain question outside a test (off by default). Settings are on the command line: htm settings.",
+    note: "No icon: it works from the command line (htm). Settings: htm settings. Experimental questions outside a test: htm settings set questions on."
   }
 ]
 
