@@ -198,7 +198,7 @@ t("settings rows: own scratchpads, then each plugin with state, store link and c
   assert.strictEqual(M.commandFor(rows[1]), "omarchy plugin add https://github.com/AktOn1/omarchy-scratchpad-frame.git --enable")
   assert.strictEqual(M.commandFor(rows[2]), "omarchy plugin enable io.github.akton1.fullscreen-app-auto-workspace")
   assert.strictEqual(M.storeLink(M.CATALOG[0]), "")
-  assert.strictEqual(M.commandFor(rows[3]), "omarchy plugin add https://github.com/AktOn1/omarchy-ask-me-while-testing.git --enable")
+  assert.strictEqual(M.commandFor(rows[3]), "omarchy plugin add https://github.com/AktOn1/omarchy-background-worker-talk-to-me.git --enable")
   assert.ok(rows[3].entry.note.length > 10)
   assert.strictEqual(M.storeLink(M.CATALOG[2]), "")
   assert.strictEqual(M.storeLink(M.CATALOG[1]), "https://plugins.omarchy.org/plugin.html?id=io.github.akton1.fullscreen-app-auto-workspace")

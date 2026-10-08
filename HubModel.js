@@ -48,14 +48,14 @@ var CATALOG = [
     info: "Moves every game that goes fullscreen to its own hidden layer, so your normal workspace stays clean. One key brings the game back or sends it away; it can mute the game while hidden."
   },
   {
-    id: "io.github.akton1.ask-me-while-testing",
-    name: "Ask Me While Testing",
-    target: "ask-me-while-testing",
+    id: "io.github.akton1.background-worker-talk-to-me",
+    name: "Background Worker Talk To Me",
+    target: "background-worker-talk-to-me",
     view: "",
     ownView: false,
     listed: false,
-    repo: "https://github.com/AktOn1/omarchy-ask-me-while-testing.git",
-    page: "https://github.com/AktOn1/omarchy-ask-me-while-testing",
+    repo: "https://github.com/AktOn1/omarchy-background-worker-talk-to-me.git",
+    page: "https://github.com/AktOn1/omarchy-background-worker-talk-to-me",
     blurb: "An AI agent that changes your desktop asks you quick questions, and a TESTING banner shows while it works.",
     info: "When a script or AI agent moves windows or changes the bar, it shows a countdown and a TESTING banner and asks you one-key questions (Y / N / ?) or a typed reply, instead of slow screenshot loops. Experimental: agents can also ask a plain question outside a test (off by default). Settings are on the command line: htm settings.",
     note: "No icon: it works from the command line (htm). Settings: htm settings. Experimental questions outside a test: htm settings set questions on."
