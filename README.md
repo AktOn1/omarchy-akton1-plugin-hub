@@ -1,5 +1,7 @@
 # AktOn1 Plugin Hub
 
+<a href='https://ko-fi.com/akton1' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi3.png?v=6' border='0' alt='Buy Me a Coffee at ko-fi.com' /></a>
+
 One bar icon and one flyout for the AktOn1 plugins. It lists the ones you have installed, shows their settings, and installs the ones you do not have yet. The Hub bundles none of them. Every AktOn1 plugin is installed on its own and works without the Hub.
 
 - **Scratchpads**: make several named scratchpads. Each has its own key, its own slide-in side (several different sides at once), its own frame style, its own tiling layout, and apps that start at login. The original `SUPER + S` scratchpad is there from the start. One scratchpad at most holds the fullscreen-game layer.
